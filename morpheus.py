@@ -16,12 +16,13 @@ logging.basicConfig(
     datefmt="%d-%b-%y %H:%M:%S",
 )
 
-SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
-SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET")
-TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")  # Make sure to set this environment variable
+# Environment variables
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")      # Bot token (xoxb-...)
+SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")      # App-level token (xapp-...)
+TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")    # Channel ID for the "#tasks" channel
 
-# Initialize the Slack Bolt asynchronous app
-app = AsyncApp(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
+# Initialize the Slack Bolt asynchronous app using the bot token.
+app = AsyncApp(token=SLACK_BOT_TOKEN)
 
 # Initialize the Pydantic AI agent (using GPT-4o)
 agent = Agent('openai:gpt-4o')
@@ -42,6 +43,8 @@ async def handle_mention(body, say):
     # Process the message using the Pydantic AI agent
     result = await agent.run(user_message)
     response_text = result.data  # Agent's response
+
+    # Respond back in Slack using the bot token.
     await say(response_text)
 
 # Listen for messages in the designated "#tasks" channel
@@ -64,16 +67,16 @@ async def handle_message(body, say):
         except SlackApiError as e:
             logging.error(f"Failed to post message: {e}")
 
-# Main entry point to start the app with Socket Mode
+# Main entry point to start the Socket Mode handler.
 async def main():
-    # Instantiate the AsyncSocketModeHandler inside an active event loop
-    socket_mode_handler = AsyncSocketModeHandler(app, SLACK_BOT_TOKEN)
+    # Instantiate the AsyncSocketModeHandler using the app-level token.
+    socket_mode_handler = AsyncSocketModeHandler(app, SLACK_APP_TOKEN)
 
-    # Test authentication and log the connected user
+    # Test authentication and log the connected user.
     auth_test = await app.client.auth_test()
     logging.info(f"Connected as {auth_test.get('user')}")
 
-    # Start the Socket Mode handler to listen for events
+    # Start the Socket Mode handler to listen for events.
     await socket_mode_handler.start_async()
 
 if __name__ == "__main__":
