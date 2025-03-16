@@ -1,13 +1,12 @@
 import os
 import json
-import openai
 import asyncio
 import logging
 from dotenv import load_dotenv
-from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
-from slack_sdk import WebClient
+from slack_bolt.async_app import AsyncApp
+from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
+from pydantic_ai import Agent
 
 load_dotenv()
 
@@ -19,60 +18,68 @@ logging.basicConfig(
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET")
+TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")  # Set this to your "#tasks" channel ID
 
-# Initialize Bolt app
-app = App(token = SLACK_BOT_TOKEN, signing_secret = SLACK_SIGNING_SECRET)
-socket_mode_handler = SocketModeHandler(app, SLACK_BOT_TOKEN)
-client = WebClient(os.environ["SLACK_BOT_TOKEN"])
+# Initialize Slack Bolt asynchronous app
+app = AsyncApp(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
+socket_mode_handler = AsyncSocketModeHandler(app, SLACK_BOT_TOKEN)
 
-# Initialize OpenAI API
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+# Initialize the Pydantic AI agent (using GPT-4o)
+agent = Agent('openai:gpt-4o')
 
-# Define function to write messages to JSON file
+# Define a function to write messages to a JSON file for logging purposes
 def write_to_file(message):
     with open("messages.json", "a") as f:
         json.dump(message, f)
         f.write("\n")
 
-# Define function to handle @Morpheus mentions
+# Handle @Morpheus mentions
 @app.event("app_mention")
-async def handle_mention(body, say, client):
-    channel_id = body["event"]["channel"]
-    user_message = body["event"]["text"]
-    
-    # Read messages from file
-    with open("messages.json", "r") as file:
-        messages = file.readlines()
-    
-#    # Initialize OpenAI Chat API request
-#    response = openai.ChatCompletion.create(
-#        model="text-davinci-003",
-#        messages=[{"role": "system", "content": message} for message in messages],
-#        max_tokens=100,
-#        prompt=user_message
-#    )
-    
-    # Post response to Slack channel
-#    try:
-#        say(response.choices[0].text.strip())
-#    except SlackApiError as e:
-#        print(f"Error posting message: {e.response['error']}")
+async def handle_mention(body, say):
+    event = body.get("event", {})
+    channel_id = event.get("channel")
+    user_message = event.get("text", "")
 
+    logging.debug(f"Received an @Morpheus mention in channel {channel_id}: {user_message}")
 
-# Define function to listen for messages in "#tasks" channel
+    # Process the message asynchronously with the agent
+    result = await agent.run(user_message)
+    response_text = result.data  # This contains agent's response
+
+    # Post the agent's response back to Slack
+    await say(response_text)
+
+# Listen for messages specifically in the "#tasks" channel
 @app.event("message")
-async def handle_message(body, say, client):
-    channel_id = body["event"]["channel"]
-    message_text = body["event"]["text"]
-    
-    # Write message to file if it's in the #tasks channel
-    #if channel_id == "tasks":
-    write_to_file(message_text)
+async def handle_message(body, say):
+    event = body.get("event", {})
+    channel_id = event.get("channel")
+    message_text = event.get("text", "")
 
+    # Only process messages from the designated #tasks channel
+    if channel_id == TASKS_CHANNEL_ID:
+        logging.debug(f"Received message in #tasks channel: {message_text}")
+        # Write the message to file for logging
+        write_to_file({"channel": channel_id, "text": message_text})
+
+        # Process the message with the agent
+        result = await agent.run(message_text)
+        response_text = result.data
+
+        try:
+            # Post the result of the agent's processing back to the #tasks channel
+            await say(response_text)
+        except SlackApiError as e:
+            logging.error(f"Failed to post message: {e}")
+
+# Main entry point to start the Socket Mode connection
 if __name__ == "__main__":
-    auth_test = client.auth_test()
-    socket_mode_handler.connect()
-    logging.info(f"Connected as {auth_test['app_name']}")
-    loop = asyncio.get_event_loop()
-    loop.create_task()  # TODO
-    loop.run_forever()
+    async def main():
+        # Check authentication and log the connected user
+        auth_test = await app.client.auth_test()
+        logging.info(f"Connected as {auth_test.get('user')}")
+
+        # Start the app in Socket Mode
+        await socket_mode_handler.start_async()
+
+    asyncio.run(main())
