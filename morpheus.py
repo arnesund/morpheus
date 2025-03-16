@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
-from agent import agent  # Import the agent instance from agent.py
+from agent import MorpheusBot  # Import the class from agent.py
 
 load_dotenv()
 
@@ -16,11 +16,14 @@ logging.basicConfig(
     datefmt="%d-%b-%y %H:%M:%S",
 )
 
-# Environment variables
+# Environment variables for Slack tokens and channel IDs.
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")      # Bot token (xoxb-...)
 SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")      # App-level token (xapp-...)
-TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")    # Channel ID for the "#tasks" channel
-MORPHEUS_CHANNEL_ID = os.getenv("MORPHEUS_CHANNEL_ID")  # Channel ID for the "#morpheus" channel
+TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")    # Channel ID for "#tasks"
+MORPHEUS_CHANNEL_ID = os.getenv("MORPHEUS_CHANNEL_ID")  # Channel ID for "#morpheus"
+
+# Instantiate the MorpheusBot which initializes OpenAI and the SQLite DB.
+bot = MorpheusBot()
 
 # Initialize the Slack Bolt asynchronous app using the bot token.
 app = AsyncApp(token=SLACK_BOT_TOKEN)
@@ -38,8 +41,8 @@ async def handle_mention(body, say):
     user_message = event.get("text", "")
     logging.debug(f"Received an @Morpheus mention in channel {channel_id}: {user_message}")
 
-    # Process the message using the agent imported from agent.py
-    result = await agent.run(user_message)
+    # Process the message using the agent from our MorpheusBot instance.
+    result = await bot.agent.run(user_message)
     response_text = result.data  # Agent's response
 
     await say(response_text)
@@ -51,15 +54,15 @@ async def handle_message(body, say):
     channel_id = event.get("channel")
     message_text = event.get("text", "")
 
-    # Check if the message is coming from a channel where Morpheus should respond
+    # Check if the message is coming from a channel in which Morpheus should respond.
     if channel_id == TASKS_CHANNEL_ID or channel_id == MORPHEUS_CHANNEL_ID:
         logging.debug(f"Received message in channel {channel_id}: {message_text}")
-        
-        # Optionally log messages from the #tasks channel
+
+        # Optionally log messages from the #tasks channel.
         if channel_id == TASKS_CHANNEL_ID:
             write_to_file({"channel": channel_id, "text": message_text})
         
-        result = await agent.run(message_text)
+        result = await bot.agent.run(message_text)
         response_text = result.data
 
         try:
