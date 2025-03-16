@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
-from pydantic_ai import Agent
+from agent import agent  # Import the agent instance from agent.py
 
 load_dotenv()
 
@@ -25,15 +25,12 @@ MORPHEUS_CHANNEL_ID = os.getenv("MORPHEUS_CHANNEL_ID")  # Channel ID for the "#m
 # Initialize the Slack Bolt asynchronous app using the bot token.
 app = AsyncApp(token=SLACK_BOT_TOKEN)
 
-# Initialize the Pydantic AI agent (using GPT-4o)
-agent = Agent('openai:gpt-4o')
-
 def write_to_file(message):
     with open("messages.json", "a") as f:
         json.dump(message, f)
         f.write("\n")
 
-# Handle @Morpheus mentions wherever they happen.
+# Handle @Morpheus mentions
 @app.event("app_mention")
 async def handle_mention(body, say):
     event = body.get("event", {})
@@ -41,11 +38,10 @@ async def handle_mention(body, say):
     user_message = event.get("text", "")
     logging.debug(f"Received an @Morpheus mention in channel {channel_id}: {user_message}")
 
-    # Process the message using the Pydantic AI agent
+    # Process the message using the agent imported from agent.py
     result = await agent.run(user_message)
     response_text = result.data  # Agent's response
 
-    # Respond back in Slack using the bot token.
     await say(response_text)
 
 # Listen for plain messages in designated channels (#tasks and #morpheus)
