@@ -20,6 +20,7 @@ logging.basicConfig(
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")      # Bot token (xoxb-...)
 SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")      # App-level token (xapp-...)
 TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")    # Channel ID for the "#tasks" channel
+MORPHEUS_CHANNEL_ID = os.getenv("MORPHEUS_CHANNEL_ID")  # Channel ID for the "#morpheus" channel
 
 # Initialize the Slack Bolt asynchronous app using the bot token.
 app = AsyncApp(token=SLACK_BOT_TOKEN)
@@ -32,7 +33,7 @@ def write_to_file(message):
         json.dump(message, f)
         f.write("\n")
 
-# Handle @Morpheus mentions
+# Handle @Morpheus mentions wherever they happen.
 @app.event("app_mention")
 async def handle_mention(body, say):
     event = body.get("event", {})
@@ -47,18 +48,21 @@ async def handle_mention(body, say):
     # Respond back in Slack using the bot token.
     await say(response_text)
 
-# Listen for messages in the designated "#tasks" channel
+# Listen for plain messages in designated channels (#tasks and #morpheus)
 @app.event("message")
 async def handle_message(body, say):
     event = body.get("event", {})
     channel_id = event.get("channel")
     message_text = event.get("text", "")
 
-    # Only process messages from the designated #tasks channel
-    if channel_id == TASKS_CHANNEL_ID:
-        logging.debug(f"Received message in #tasks channel: {message_text}")
-        write_to_file({"channel": channel_id, "text": message_text})
-
+    # Check if the message is coming from a channel where Morpheus should respond
+    if channel_id == TASKS_CHANNEL_ID or channel_id == MORPHEUS_CHANNEL_ID:
+        logging.debug(f"Received message in channel {channel_id}: {message_text}")
+        
+        # Optionally log messages from the #tasks channel
+        if channel_id == TASKS_CHANNEL_ID:
+            write_to_file({"channel": channel_id, "text": message_text})
+        
         result = await agent.run(message_text)
         response_text = result.data
 
