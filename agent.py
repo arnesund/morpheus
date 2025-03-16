@@ -12,8 +12,7 @@ class MorpheusBot:
         # Load environment variables from .env
         load_dotenv()
 
-        # Validate that required environment variables are present.
-        # In this case we'll require OPENAI_API_KEY; you can add others as needed.
+        # Validate that required environment variables are present. Adjust as needed.
         required_vars = ['OPENAI_API_KEY']
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         if missing_vars:
@@ -24,6 +23,9 @@ class MorpheusBot:
 
         # Initialize the agent. (This example uses GPT-4o; adjust as needed.)
         self.agent = Agent('openai:gpt-4o')
+
+        # Initialize an empty message history.
+        self.history = []
 
         # Initialize (or create) the SQLite database for tasks.
         self.init_db()
@@ -96,8 +98,8 @@ class MorpheusBot:
                 conn.close()
                 return f"Task with ID {task_id} does not exist."
             
-            updates = []  # Parts of the update query.
-            params = []   # Parameters for the query.
+            updates = []
+            params = []
             
             if description is not None:
                 updates.append("description = ?")
@@ -117,8 +119,7 @@ class MorpheusBot:
             conn.close()
             return f"Task with ID {task_id} updated successfully."
 
-        # Optionally, you can store references to these tools as instance variables.
-        # This allows you to call them directly via self.list_tasks(), etc., if needed.
+        # Optionally, assign these tool functions to instance variables.
         self.list_tasks = list_tasks
         self.add_task = add_task
         self.update_task = update_task
@@ -139,3 +140,20 @@ class MorpheusBot:
         )
         conn.commit()
         conn.close()
+
+    async def process_message(self, text: str):
+        """
+        Wrapper for self.agent.run() that passes along the message history as well.
+        Updates self.history by calling all_messages() on the returned result.
+        
+        Arguments:
+            text: The input text to process.
+            
+        Returns:
+            The result of the agent.run() call.
+        """
+        # Run the agent including the message history.
+        result = await self.agent.run(text, message_history=self.history)
+        # Update history using result.all_messages() (assuming this method exists).
+        self.history = result.all_messages()
+        return result
