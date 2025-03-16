@@ -12,3 +12,7 @@ wheels/
 
 # Secrets
 .env
+
+# App specific data
+tasks.db
+messages.json
