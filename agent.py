@@ -1,15 +1,21 @@
 import os
 import sqlite3
 from datetime import datetime
+from dotenv import load_dotenv
+import openai
 from pydantic_ai import Agent
 
-# Define the database file name.
+# Load environment variables and set OpenAI API key
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Define the SQLite database file name
 DB_FILENAME = "tasks.db"
 
 # Initialize the Pydantic AI agent (using GPT-4o)
 agent = Agent('openai:gpt-4o')
 
-# Initialize the SQLite database and create the tasks table if it doesn't exist.
+# Create the tasks table if it doesn't already exist
 def init_db():
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
@@ -54,8 +60,8 @@ def add_task(description: str) -> str:
     """
     Add a new task with the given description.
     
-    Arguments:
-    • description: The text description of the task.
+    Argument:
+      - description: The text description of the task.
     
     Returns a confirmation message with the new task's ID.
     """
@@ -74,9 +80,9 @@ def update_task(task_id: int, description: str = None, complete: bool = False) -
     Update an existing task.
     
     Arguments:
-    • task_id: The ID of the task to update.
-    • description: (Optional) New description text for the task.
-    • complete: (Optional) If true, marks the task as complete and sets time_complete to the current time.
+      - task_id: The ID of the task to update.
+      - description: (Optional) New description text for the task.
+      - complete: (Optional) If true, marks the task as complete and sets time_complete to the current time.
     
     Returns a success message or an error message if the task doesn’t exist.
     """
@@ -109,6 +115,3 @@ def update_task(task_id: int, description: str = None, complete: bool = False) -
     conn.commit()
     conn.close()
     return f"Task with ID {task_id} updated successfully."
-
-# Optionally, you can add other helper functions or even register these tools with the agent
-# if your application structure requires that.

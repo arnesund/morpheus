@@ -69,14 +69,9 @@ async def handle_message(body, say):
 
 # Main entry point to start the Socket Mode handler.
 async def main():
-    # Instantiate the AsyncSocketModeHandler using the app-level token.
     socket_mode_handler = AsyncSocketModeHandler(app, SLACK_APP_TOKEN)
-
-    # Test authentication and log the connected user.
     auth_test = await app.client.auth_test()
     logging.info(f"Connected as {auth_test.get('user')}")
-
-    # Start the Socket Mode handler to listen for events.
     await socket_mode_handler.start_async()
 
 if __name__ == "__main__":
