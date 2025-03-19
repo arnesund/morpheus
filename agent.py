@@ -6,9 +6,8 @@ import openai
 from pydantic_ai import Agent
 
 class MorpheusBot:
-    DB_FILENAME = "tasks.db"  # Name of the SQLite database file
-
-    def __init__(self):
+    def __init__(self, db_filename: str = "tasks.db"):
+        self.DB_FILENAME = db_filename  # Use provided database filename, default "tasks.db"
         # Load environment variables from .env
         load_dotenv()
         # Validate that required environment variables are present. Adjust as needed.
@@ -33,7 +32,7 @@ class MorpheusBot:
             Returns a formatted string of tasks with their ID, description, time added,
             due date/time/statement, tags, and completion status.
             """
-            conn = sqlite3.connect(MorpheusBot.DB_FILENAME)
+            conn = sqlite3.connect(self.DB_FILENAME)
             cursor = conn.cursor()
             cursor.execute("SELECT id, description, time_added, time_complete, due, tags FROM tasks")
             rows = cursor.fetchall()
@@ -65,11 +64,10 @@ class MorpheusBot:
             Returns a confirmation message with the new task's ID.
             """
             current_time = datetime.now().isoformat()
-            conn = sqlite3.connect(MorpheusBot.DB_FILENAME)
+            conn = sqlite3.connect(self.DB_FILENAME)
             cursor = conn.cursor()
-            # Ensure that tags and due default to empty strings if not provided.
-            tags = tags.strip()
             due = due.strip()
+            tags = tags.strip()
             cursor.execute(
                 "INSERT INTO tasks (description, time_added, due, tags) VALUES (?, ?, ?, ?)",
                 (description, current_time, due, tags)
@@ -89,7 +87,7 @@ class MorpheusBot:
             - complete: (Optional) If True, mark the task as complete (sets time_complete to now).
             Returns a success message or an error message if task not found.
             """
-            conn = sqlite3.connect(MorpheusBot.DB_FILENAME)
+            conn = sqlite3.connect(self.DB_FILENAME)
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
             if cursor.fetchone() is None:
@@ -123,7 +121,7 @@ class MorpheusBot:
             - tags: List of tags (strings) to add.
             Returns a confirmation message or an error message if task not found.
             """
-            conn = sqlite3.connect(MorpheusBot.DB_FILENAME)
+            conn = sqlite3.connect(self.DB_FILENAME)
             cursor = conn.cursor()
             cursor.execute("SELECT tags FROM tasks WHERE id = ?", (task_id,))
             row = cursor.fetchone()
@@ -150,7 +148,7 @@ class MorpheusBot:
             - due: A string representing due date/time or a due statement.
             Returns a success message or an error message if the task is not found.
             """
-            conn = sqlite3.connect(MorpheusBot.DB_FILENAME)
+            conn = sqlite3.connect(self.DB_FILENAME)
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
             if cursor.fetchone() is None:
@@ -173,7 +171,7 @@ class MorpheusBot:
         Initialize the SQLite database and create the tasks table if it doesn't exist.
         Also, check if the 'due' and 'tags' columns exist and ALTER TABLE to add them if missing.
         """
-        conn = sqlite3.connect(MorpheusBot.DB_FILENAME)
+        conn = sqlite3.connect(self.DB_FILENAME)
         cursor = conn.cursor()
         cursor.execute(
             '''
