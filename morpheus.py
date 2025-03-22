@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.adapter.socket_mode.aiohttp import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
-from agent import MorpheusBot  # Import the MorpheusBot class
+
+from agent import MorpheusBot
 
 load_dotenv()
 
@@ -34,13 +35,20 @@ TASKS_CHANNEL_ID = os.getenv("TASKS_CHANNEL_ID")           # Channel ID for "#ta
 MORPHEUS_CHANNEL_ID = os.getenv("MORPHEUS_CHANNEL_ID")     # Channel ID for "#morpheus"
 WORK_TASKS_CHANNEL_ID = os.getenv("WORK_TASKS_CHANNEL_ID")   # Channel ID for "#worktasks"
 
+# Use the contents of "system_prompt.md" as system prompt, if it exists
+system_prompt = ""
+system_prompt_filepath = "system_prompt.md"
+if os.path.exists(system_prompt_filepath):
+    with open(system_prompt_filepath, "r", encoding="utf-8") as file:
+        system_prompt = file.read()
+
 # Instantiate MorpheusBot instances:
 # - One for the tasks channel (default database filename will be used).
 # - One for the morpheus channel.
 # - One for the worktasks channel (passing "worktasks.db" as the database filename).
-bot_tasks = MorpheusBot()
-bot_morpheus = MorpheusBot()
-bot_worktasks = MorpheusBot("worktasks.db")
+bot_tasks = MorpheusBot(system_prompt=system_prompt)
+bot_morpheus = MorpheusBot(system_prompt=system_prompt)
+bot_worktasks = MorpheusBot("worktasks.db", system_prompt=system_prompt)
 
 # Initialize the Slack Bolt asynchronous app using the bot token.
 app = AsyncApp(token=SLACK_BOT_TOKEN)
