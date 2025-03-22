@@ -1,170 +1,79 @@
 import os
 import sqlite3
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
 import openai
 from pydantic_ai import Agent
 
 class MorpheusBot:
-    def __init__(self, db_filename: str = "tasks.db"):
-        self.DB_FILENAME = db_filename  # Use provided database filename, default "tasks.db"
-        # Load environment variables from .env
+    def __init__(self, db_filename: str = "tasks.db", system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity."):
+        self.DB_FILENAME = db_filename
+
+        # Ensure the logs directory exists for audit logs.
+        os.makedirs("logs", exist_ok=True)
+
+        # Set up the audit logger that writes to logs/auditlog.log.
+        self.audit_logger = logging.getLogger("auditlog")
+        self.audit_logger.setLevel(logging.INFO)
+        # Avoid adding duplicate handlers if the logger already has them.
+        if not self.audit_logger.handlers:
+            audit_handler = logging.FileHandler("logs/auditlog.log")
+            audit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            self.audit_logger.addHandler(audit_handler)
+
         load_dotenv()
-        # Validate that required environment variables are present. Adjust as needed.
+        # Validate that required environment variables are present.
         required_vars = ['OPENAI_API_KEY']
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
-        # Set the OpenAI API key.
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        # Initialize the agent. (This example uses GPT-4o; adjust as needed.)
-        self.agent = Agent('openai:gpt-4o')
+
+        self.agent = Agent(
+            model = 'openai:gpt-4o',
+            system_prompt = system_prompt,
+        )
+
         # Initialize an empty message history.
         self.history = []
         # Initialize (or create) the SQLite database for tasks.
         self.init_db()
 
-        # Register agent tools as inner functions decorated with tool_plain.
+        # Register agent tools as inner asynchronous functions decorated with tool_plain.
         @self.agent.tool_plain()
-        def list_tasks() -> str:
+        def query_task_database(query: str, params: tuple = ()) -> str:
             """
-            List all tasks stored in the database.
-            Returns a formatted string of tasks with their ID, description, time added,
-            due date/time/statement, tags, and completion status.
-            """
-            conn = sqlite3.connect(self.DB_FILENAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, description, time_added, time_complete, due, tags FROM tasks")
-            rows = cursor.fetchall()
-            conn.close()
-            if not rows:
-                return "No tasks found."
-            output_lines = []
-            for row in rows:
-                task_id, description, time_added, time_complete, due, tags = row
-                status = "Completed" if time_complete is not None else "Pending"
-                completed_str = time_complete if time_complete is not None else "N/A"
-                due_str = due if due else "N/A"
-                tags_clean = tags.strip() if tags else ""
-                tags_str = tags_clean if tags_clean else "N/A"
-                output_lines.append(
-                    f"ID: {task_id}, Description: {description}, Added: {time_added}, "
-                    f"Due: {due_str}, Tags: {tags_str}, Completed: {completed_str} (Status: {status})"
-                )
-            return "\n".join(output_lines)
+            Query the task database with a given SQL query. You can read data with
+            SELECT queries and update data with INSERT and UPDATE queries.
+            The database is an SQLite database with a single table named 'tasks'.
 
-        @self.agent.tool_plain()
-        def add_task(description: str, due: str = "", tags: str = "") -> str:
-            """
-            Add a new task with the given description, with optional due information and tags.
-            Arguments:
-            - description: Text description for the task.
-            - due: (Optional) A string representing due date/time or a generic due statement.
-            - tags: (Optional) Comma-separated list of tags.
-            Returns a confirmation message with the new task's ID.
-            """
-            current_time = datetime.now().isoformat()
-            conn = sqlite3.connect(self.DB_FILENAME)
-            cursor = conn.cursor()
-            due = due.strip()
-            tags = tags.strip()
-            cursor.execute(
-                "INSERT INTO tasks (description, time_added, due, tags) VALUES (?, ?, ?, ?)",
-                (description, current_time, due, tags)
-            )
-            conn.commit()
-            new_id = cursor.lastrowid
-            conn.close()
-            return f"Task added with ID: {new_id}"
+            Schema for the 'tasks' table:
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                description TEXT NOT NULL,
+                time_added TEXT NOT NULL,
+                time_complete TEXT
+                due TEXT DEFAULT ''
+                tags TEXT DEFAULT ''
 
-        @self.agent.tool_plain()
-        def update_task(task_id: int, description: str = None, complete: bool = False) -> str:
-            """
-            Update an existing task.
-            Arguments:
-            - task_id: The ID of the task to update.
-            - description: (Optional) New description text.
-            - complete: (Optional) If True, mark the task as complete (sets time_complete to now).
-            Returns a success message or an error message if task not found.
-            """
-            conn = sqlite3.connect(self.DB_FILENAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
-            if cursor.fetchone() is None:
-                conn.close()
-                return f"Task with ID {task_id} does not exist."
-            updates = []
-            params = []
-            if description is not None:
-                updates.append("description = ?")
-                params.append(description)
-            if complete:
-                updates.append("time_complete = ?")
-                params.append(datetime.now().isoformat())
-            if not updates:
-                conn.close()
-                return "No updates were provided."
-            params.append(task_id)
-            query = f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?"
-            cursor.execute(query, params)
-            conn.commit()
-            conn.close()
-            return f"Task with ID {task_id} updated successfully."
+            Important notes:
+            The 'time_added' and 'time_complete' fields are stored as ISO 8601 strings.
+            The 'time_complete' field is empty for tasks that are not yet complete.
+            The 'due' field can be a date, time, or a generic description of a future period.
+            The 'tags' field is a comma-separated list of lowercased tags. Tags are used to group tasks.
+            When multiple tags are used, split them by comma to understand the task better.
+            The 'tags' field is empty for tasks that have no tags yet. Suggest tags that might be useful.
 
-        @self.agent.tool_plain()
-        def add_tags(task_id: int, tags: list[str]) -> str:
+            Args:
+                query (str): The SQL query to execute.
+                params (tuple): The parameters to pass to the query, if any.
+            Returns:
+                str: The result of the query as a formatted string.
             """
-            Add tags to an existing task identified by task_id.
-            This function will merge new tags with any existing ones (ensuring they remain unique).
-            Arguments:
-            - task_id: The ID of the task to update.
-            - tags: List of tags (strings) to add.
-            Returns a confirmation message or an error message if task not found.
-            """
-            conn = sqlite3.connect(self.DB_FILENAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT tags FROM tasks WHERE id = ?", (task_id,))
-            row = cursor.fetchone()
-            if row is None:
-                conn.close()
-                return f"Task with ID {task_id} does not exist."
-            current_tags_str = row[0].strip() if row[0] else ""
-            current_tags = set(tag.strip() for tag in current_tags_str.split(",") if tag.strip())
-            new_tags = set(tag.strip() for tag in tags if tag.strip())
-            updated_tags = current_tags.union(new_tags)
-            updated_tags_str = ", ".join(sorted(updated_tags))
-            cursor.execute("UPDATE tasks SET tags = ? WHERE id = ?", (updated_tags_str, task_id))
-            conn.commit()
-            conn.close()
-            return f"Tags updated for task with ID {task_id}: {updated_tags_str if updated_tags_str else 'None'}"
-
-        @self.agent.tool_plain()
-        def update_due(task_id: int, due: str) -> str:
-            """
-            Update the due information for an existing task identified by task_id.
-            The due parameter can be a specific date/time or a more generic statement like 'this summer'.
-            Arguments:
-            - task_id: The ID of the task to update.
-            - due: A string representing due date/time or a due statement.
-            Returns a success message or an error message if the task is not found.
-            """
-            conn = sqlite3.connect(self.DB_FILENAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
-            if cursor.fetchone() is None:
-                conn.close()
-                return f"Task with ID {task_id} does not exist."
-            cursor.execute("UPDATE tasks SET due = ? WHERE id = ?", (due, task_id))
-            conn.commit()
-            conn.close()
-            return f"Due date/statement updated for task with ID {task_id}."
-
-        # Assign these tool functions to instance variables.
-        self.list_tasks = list_tasks
-        self.add_task = add_task
-        self.update_task = update_task
-        self.add_tags = add_tags
-        self.update_due = update_due
+            try:
+                rows = self.query_db(query, params)
+                return "\n".join([str(row) for row in rows])
+            except sqlite3.Error as e:
+                return f"Error executing query: {e}"
 
     def init_db(self):
         """
@@ -197,15 +106,44 @@ class MorpheusBot:
 
         conn.close()
 
+    def query_db(self, query, params=()):
+        """
+        Execute a query on the SQLite database and return the results.
+        """
+        self.log_query(query, params)
+        with sqlite3.connect(self.DB_FILENAME) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+            conn.commit()
+        return results
+
+    def log_query(self, query, params):
+        """
+        Log the query and its parameters to the audit log.
+        """
+        self.audit_logger.info(f"Executed Query: {query} | Params: {params}")
+
+    def update_history(self, history):
+        """
+        Update the bot's history with the given history, filtered to keep only
+        the relevant entries.
+
+        Arguments:
+            history: A list of messages to update the bot's history with.
+        """
+        self.history = history
+
     async def process_message(self, text: str):
         """
         Wrapper for self.agent.run() that passes along the message history as well.
         Updates self.history by calling all_messages() on the returned result.
+
         Arguments:
             text: The input text to process.
         Returns:
             The result of the agent.run() call.
         """
         result = await self.agent.run(text, message_history=self.history)
-        self.history = result.all_messages()
+        self.update_history(result.all_messages())
         return result
