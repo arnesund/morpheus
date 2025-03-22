@@ -60,20 +60,6 @@ def select_bot(channel_id: str) -> MorpheusBot:
         # you might choose to use one of the bots or ignore it.
         return bot_morpheus
 
-# Handle @Morpheus mentions.
-@app.event("app_mention")
-async def handle_mention(body, say):
-    event = body.get("event", {})
-    channel_id = event.get("channel")
-    user_message = event.get("text", "")
-    logger.debug(f"Received an @Morpheus mention in channel {channel_id}: {user_message}")
-    # Select the appropriate bot based on the channel.
-    current_bot = select_bot(channel_id)
-    # Process the incoming message and update the bot's history.
-    result = await current_bot.process_message(user_message)
-    response_text = result.data  # Agent's response
-    await say(response_text)
-
 # Listen for plain messages in designated channels.
 @app.event("message")
 async def handle_message(body, say):
