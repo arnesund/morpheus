@@ -144,6 +144,8 @@ class MorpheusBot:
         Returns:
             The result of the agent.run() call.
         """
+        self.audit_logger.info(f"Processing message: {text.strip()}")
         result = await self.agent.run(text, message_history=self.history)
+        self.audit_logger.info(f"Token usage: {result.usage()}")
         self.update_history(result.all_messages())
         return result
