@@ -14,7 +14,7 @@ load_dotenv()
 
 # Set up logging to both stdout and a file with daily rotation.
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 console_handler = logging.StreamHandler(sys.stdout)
 file_handler = TimedRotatingFileHandler("logs/morpheus.log", when="midnight", interval=1)
