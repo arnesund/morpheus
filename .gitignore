@@ -17,3 +17,4 @@ wheels/
 tasks.db
 messages.json
 backups/
+system_prompt.md
