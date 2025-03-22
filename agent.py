@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from dotenv import load_dotenv
 import openai
 from pydantic_ai import Agent
@@ -10,8 +10,9 @@ class MorpheusBot:
     def __init__(self, db_filename: str = "tasks.db", system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity."):
         self.DB_FILENAME = db_filename
 
-        # Ensure the logs directory exists for audit logs.
+        # Ensure the required directories exist
         os.makedirs("logs", exist_ok=True)
+        os.makedirs("notes", exist_ok=True)
 
         # Set up the audit logger that writes to logs/auditlog.log.
         self.audit_logger = logging.getLogger("auditlog")
@@ -29,15 +30,31 @@ class MorpheusBot:
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
+        # Initialize an empty message history.
+        self.history = []
+        # Initialize (or create) the SQLite database for tasks.
+        self.init_db()
+
+       # Initialize the agent with the given system prompt.
         self.agent = Agent(
             model = 'openai:gpt-4o',
             system_prompt = system_prompt,
         )
 
-        # Initialize an empty message history.
-        self.history = []
-        # Initialize (or create) the SQLite database for tasks.
-        self.init_db()
+        # Add dynamic system prompt snippets as well.
+        @self.agent.system_prompt
+        def add_the_date() -> str:
+            return f'The current date is {date.today()}.'
+
+        @self.agent.system_prompt
+        def read_notes() -> str:
+            """
+            Read in the contents of the notes/notebook.md file.
+            """
+            if not os.path.exists('notes/notebook.md'):
+                return ""
+            with open('notes/notebook.md', 'r') as f:
+                return f.read()
 
         # Register agent tools as inner asynchronous functions decorated with tool_plain.
         @self.agent.tool_plain()
@@ -74,6 +91,24 @@ class MorpheusBot:
                 return "\n".join([str(row) for row in rows])
             except sqlite3.Error as e:
                 return f"Error executing query: {e}"
+
+        @self.agent.tool_plain()
+        def write_notes_to_notebook(text: str) -> str:
+            """
+            Write the given text to your notebook. Use this tool when you want to take a note in markdown format about something you learned about the user. Do not write tasks here. Only write thoughts and observations.
+            
+            Args:
+                text (str): The text to write to the notebook.
+            Returns:
+                str: A confirmation message.
+            """
+            try:
+                with open("notes/notebook.md", "a") as f:
+                    f.write(text + "\n")
+                return "Text written to notebook."
+            except Exception as e:
+                return f"Error writing to notebook: {e}"
+
 
     def init_db(self):
         """
