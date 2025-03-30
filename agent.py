@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import logging
+from logging.handlers import TimedRotatingFileHandler
 from datetime import date, datetime
 from dotenv import load_dotenv
 import openai
@@ -19,7 +20,8 @@ class MorpheusBot:
         self.audit_logger.setLevel(logging.INFO)
         # Avoid adding duplicate handlers if the logger already has them.
         if not self.audit_logger.handlers:
-            audit_handler = logging.FileHandler("logs/auditlog.log")
+            audit_handler = TimedRotatingFileHandler("logs/auditlog.log", when="midnight", interval=1)
+            audit_handler.suffix = "%Y-%m-%d"
             audit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
             self.audit_logger.addHandler(audit_handler)
 
