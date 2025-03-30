@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import logging
+import time
 from logging.handlers import TimedRotatingFileHandler
 from datetime import date, datetime
 from dotenv import load_dotenv
@@ -39,13 +40,15 @@ class MorpheusBot:
 
         # Initialize an empty message history.
         self.history = []
+        # Initialize the timestamp for the history (unix timestamp).
+        self.history_timestamp = None
         # Initialize (or create) the SQLite database for tasks.
         self.init_db()
 
-       # Initialize the agent with the given system prompt.
+        # Initialize the agent with the given system prompt.
         self.agent = Agent(
-            model = 'openai:gpt-4o',
-            system_prompt = system_prompt,
+            model='openai:gpt-4o',
+            system_prompt=system_prompt,
         )
 
         # Add dynamic system prompt snippets as well.
@@ -176,29 +179,44 @@ class MorpheusBot:
         with open(self.message_history_filename, "a") as f:
             f.write(messages_json)
 
-    def update_history(self, history):
+    def set_history(self, history):
         """
-        Update the bot's history with the given history, filtered to keep only
-        the relevant entries.
-
+        Update the bot's history with the given history and record the current unix timestamp.
+        
         Arguments:
             history: A list of messages to update the bot's history with.
         """
         self.history = history
+        self.history_timestamp = time.time()
+
+    def get_history(self):
+        """
+        Return the current message history. If the stored history timestamp is older than 6 hours,
+        clear the history and reset the timestamp.
+        
+        Returns:
+            list: The current valid history.
+        """
+        six_hours = 6 * 3600
+        current_time = time.time()
+        if self.history_timestamp and (current_time - self.history_timestamp > six_hours):
+            self.history = []
+            self.history_timestamp = None
+        return self.history
 
     async def process_message(self, text: str):
         """
         Wrapper for self.agent.run() that passes along the message history as well.
-        Updates self.history by calling all_messages() on the returned result.
-
+        Updates the history by calling set_history() on the returned result.
+        
         Arguments:
             text: The input text to process.
         Returns:
             The result of the agent.run() call.
         """
         self.audit_logger.info(f"Processing message: {text.strip()}")
-        result = await self.agent.run(text, message_history=self.history)
+        result = await self.agent.run(text, message_history=self.get_history())
         self.log_messages(result, self.history)
         self.audit_logger.info(f"Token usage: {result.usage()}")
-        self.update_history(result.all_messages())
+        self.set_history(result.all_messages())
         return result
