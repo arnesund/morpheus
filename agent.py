@@ -54,7 +54,7 @@ class MorpheusBot:
         # Add dynamic system prompt snippets as well.
         @self.agent.system_prompt
         def add_the_date() -> str:
-            return f'The current date is {date.today()}.'
+            return f'The current date is {date.today()} and it is a {date.today().strftime("%A")}.'
 
         @self.agent.system_prompt
         def read_notes() -> str:
@@ -64,7 +64,7 @@ class MorpheusBot:
             if not os.path.exists('notes/notebook.md'):
                 return ""
             with open('notes/notebook.md', 'r') as f:
-                return f.read()
+                return "Notes you've made so far, including your thoughts and observations:\n" + f.read()
 
         # Register agent tools as inner asynchronous functions decorated with tool_plain.
         @self.agent.tool_plain()
