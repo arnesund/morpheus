@@ -18,15 +18,16 @@ class MorpheusBot:
         os.makedirs("logs", exist_ok=True)
         os.makedirs("notes", exist_ok=True)
 
-        # Complete message history log
-        self.message_history_filename = "logs/messages.json"
+        # Commonly used folders
+        self.log_dir = "logs"
+        self.notes_dir = "notes"
 
-        # Set up the audit logger that writes to logs/auditlog.log.
+        # Set up the audit logger
         self.audit_logger = logging.getLogger("auditlog")
         self.audit_logger.setLevel(logging.INFO)
         # Avoid adding duplicate handlers if the logger already has them.
         if not self.audit_logger.handlers:
-            audit_handler = TimedRotatingFileHandler("logs/auditlog.log", when="midnight", interval=1)
+            audit_handler = TimedRotatingFileHandler(f"{self.log_dir}/auditlog.log", when="midnight", interval=1)
             audit_handler.suffix = "%Y-%m-%d"
             audit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
             self.audit_logger.addHandler(audit_handler)
@@ -59,11 +60,12 @@ class MorpheusBot:
         @self.agent.system_prompt
         def read_notes() -> str:
             """
-            Read in the contents of the notes/notebook.md file.
+            Read in the contents of the notebook.md file.
             """
-            if not os.path.exists('notes/notebook.md'):
+            filepath = f"{self.notes_dir}/notebook.md"
+            if not os.path.exists(filepath):
                 return ""
-            with open('notes/notebook.md', 'r') as f:
+            with open(filepath, "r") as f:
                 return "Notes you've made so far, including your thoughts and observations:\n" + f.read()
 
         # Register agent tools as inner asynchronous functions decorated with tool_plain.
@@ -117,8 +119,9 @@ class MorpheusBot:
             Returns:
                 str: A confirmation message.
             """
+            filepath = f"{self.notes_dir}/notebook.md"
             try:
-                with open("notes/notebook.md", "a") as f:
+                with open(filepath, "a") as f:
                     f.write(text + "\n")
                 return "Text written to notebook."
             except Exception as e:
@@ -188,7 +191,10 @@ class MorpheusBot:
         # Use the entire list if this is the first interaction in the thread
         messages = result.new_messages_json() if history else result.all_messages_json()
         messages_json = to_jsonable_python(messages)
-        with open(self.message_history_filename, "a") as f:
+
+        # Use a date-stamped filename for the message history
+        filepath = f"{self.log_dir}/messages.{datetime.now().strftime('%Y-%m-%d')}.json"
+        with open(filepath, "a") as f:
             f.write(messages_json)
 
     def set_history(self, history):
