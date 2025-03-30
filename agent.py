@@ -81,11 +81,16 @@ class MorpheusBot:
                 time_complete TEXT
                 due TEXT DEFAULT ''
                 tags TEXT DEFAULT ''
+                recurrence TEXT DEFAULT ''
 
-            Important notes:
+            Important details on how to use this dataset and the fields:
             The 'time_added' and 'time_complete' fields are stored as ISO 8601 strings.
             The 'time_complete' field is empty for tasks that are not yet complete.
+            When marking a task as complete, always check the 'recurrence' field to see if the task should be rescheduled.
+            If a task should be rescheduled, add a new task with the same description and tags, but with a new 'due' date.
             The 'due' field can be a date, time, or a generic description of a future period.
+            The 'recurrence' field is a string that describes how often the task should recur.
+            The 'recurrence' field is empty for tasks that do not recur, and that applies to the majority of tasks.
             The 'tags' field is a comma-separated list of lowercased tags. Tags are used to group tasks.
             When multiple tags are used, split them by comma to understand the task better.
             The 'tags' field is empty for tasks that have no tags yet. Suggest tags that might be useful.
@@ -134,6 +139,9 @@ class MorpheusBot:
                 description TEXT NOT NULL,
                 time_added TEXT NOT NULL,
                 time_complete TEXT
+                due TEXT DEFAULT '',
+                tags TEXT DEFAULT '',
+                recurrence TEXT DEFAULT ''
             )
             '''
         )
@@ -147,6 +155,10 @@ class MorpheusBot:
 
         if "tags" not in columns:
             cursor.execute("ALTER TABLE tasks ADD COLUMN tags TEXT DEFAULT ''")
+            conn.commit()
+
+        if "recurrence" not in columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT ''")
             conn.commit()
 
         conn.close()
