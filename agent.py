@@ -1,10 +1,12 @@
 import os
+import json
 import sqlite3
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from datetime import date, datetime
 from dotenv import load_dotenv
 import openai
+from pydantic_core import to_jsonable_python
 from pydantic_ai import Agent
 
 class MorpheusBot:
@@ -14,6 +16,9 @@ class MorpheusBot:
         # Ensure the required directories exist
         os.makedirs("logs", exist_ok=True)
         os.makedirs("notes", exist_ok=True)
+
+        # Complete message history log
+        self.message_history_filename = "logs/messages.json"
 
         # Set up the audit logger that writes to logs/auditlog.log.
         self.audit_logger = logging.getLogger("auditlog")
@@ -161,6 +166,16 @@ class MorpheusBot:
         """
         self.audit_logger.info(f"Executed Query: {query} | Params: {params}")
 
+    def log_messages(self, result, history):
+        """
+        Log each message to disk in JSON format.
+        """
+        # Use the entire list if this is the first interaction in the thread
+        messages = result.new_messages_json() if history else result.all_messages_json()
+        messages_json = to_jsonable_python(messages)
+        with open(self.message_history_filename, "a") as f:
+            f.write(messages_json)
+
     def update_history(self, history):
         """
         Update the bot's history with the given history, filtered to keep only
@@ -183,6 +198,7 @@ class MorpheusBot:
         """
         self.audit_logger.info(f"Processing message: {text.strip()}")
         result = await self.agent.run(text, message_history=self.history)
+        self.log_messages(result, self.history)
         self.audit_logger.info(f"Token usage: {result.usage()}")
         self.update_history(result.all_messages())
         return result
