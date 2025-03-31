@@ -13,14 +13,12 @@ from pydantic_ai import Agent
 class MorpheusBot:
     def __init__(self, db_filename: str = "tasks.db", system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity."):
         self.DB_FILENAME = db_filename
-
-        # Ensure the required directories exist
-        os.makedirs("logs", exist_ok=True)
-        os.makedirs("notes", exist_ok=True)
-
-        # Commonly used folders
         self.log_dir = "logs"
         self.notes_dir = "notes"
+
+        # Ensure the required directories exist
+        for d in [self.log_dir, self.notes_dir]:
+            os.makedirs(d, exist_ok=True)
 
         # Set up the audit logger
         self.audit_logger = logging.getLogger("auditlog")
