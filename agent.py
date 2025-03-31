@@ -66,6 +66,19 @@ class MorpheusBot:
             with open(filepath, "r") as f:
                 return "Notes you've made so far, including your thoughts and observations:\n" + f.read()
 
+        @self.agent.system_prompt
+        def fetch_pending_tasks() -> str:
+            """
+            Start every interaction with a full list of all pending tasks, to prime the answers.
+            """
+            tasks = query_task_database(
+                "SELECT id, description, time_added, due, tags, recurrence FROM tasks ORDER BY time_added DESC"
+            )
+            if not tasks:
+                return ""
+            return "Here is a list of all pending tasks ordered by most recently added first:\n" + \
+                    "Columns are id, description, time_added, due, tags, recurrence\n" + tasks
+
         # Register agent tools as inner asynchronous functions decorated with tool_plain.
         @self.agent.tool_plain()
         def query_task_database(query: str, params: tuple = ()) -> str:
