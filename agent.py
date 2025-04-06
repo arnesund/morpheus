@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import logging
+import random
 import time
 from logging.handlers import TimedRotatingFileHandler
 from datetime import date, datetime
@@ -9,6 +10,7 @@ from dotenv import load_dotenv
 import openai
 from pydantic_core import to_jsonable_python
 from pydantic_ai import Agent
+from pydantic_ai.messages import TextPart, ToolCallPart
 
 class MorpheusBot:
     def __init__(self, db_filename: str = "tasks.db", system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity."):
@@ -76,8 +78,8 @@ class MorpheusBot:
             )
             if not tasks:
                 return ""
-            return "Here is a list of all pending tasks ordered by most recently added first:\n" + \
-                    "Columns are id, description, time_added, due, tags, recurrence\n" + tasks
+            return ("Here is a list of all pending tasks ordered by most recently added first:\n" +
+                    "Columns are id, description, time_added, due, tags, recurrence\n" + tasks)
 
         # Register agent tools as inner asynchronous functions decorated with tool_plain.
         @self.agent.tool_plain()
@@ -91,9 +93,9 @@ class MorpheusBot:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 description TEXT NOT NULL,
                 time_added TEXT NOT NULL,
-                time_complete TEXT
-                due TEXT DEFAULT ''
-                tags TEXT DEFAULT ''
+                time_complete TEXT,
+                due TEXT DEFAULT '',
+                tags TEXT DEFAULT '',
                 recurrence TEXT DEFAULT ''
 
             Important details on how to use this dataset and the fields:
@@ -124,7 +126,7 @@ class MorpheusBot:
         def write_notes_to_notebook(text: str) -> str:
             """
             Write the given text to your notebook. Use this tool when you want to take a note in markdown format about something you learned about the user. Do not write tasks here. Only write thoughts and observations.
-            
+
             Args:
                 text (str): The text to write to the notebook.
             Returns:
@@ -142,7 +144,7 @@ class MorpheusBot:
     def init_db(self):
         """
         Initialize the SQLite database and create the tasks table if it doesn't exist.
-        Also, check if the 'due' and 'tags' columns exist and ALTER TABLE to add them if missing.
+        Also, check if the 'due', 'tags', and 'recurrence' columns exist and ALTER TABLE to add them if missing.
         """
         conn = sqlite3.connect(self.DB_FILENAME)
         cursor = conn.cursor()
@@ -152,7 +154,7 @@ class MorpheusBot:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 description TEXT NOT NULL,
                 time_added TEXT NOT NULL,
-                time_complete TEXT
+                time_complete TEXT,
                 due TEXT DEFAULT '',
                 tags TEXT DEFAULT '',
                 recurrence TEXT DEFAULT ''
@@ -211,7 +213,7 @@ class MorpheusBot:
     def set_history(self, history):
         """
         Update the bot's history with the given history and record the current unix timestamp.
-        
+
         Arguments:
             history: A list of messages to update the bot's history with.
         """
@@ -222,7 +224,7 @@ class MorpheusBot:
         """
         Return the current message history. If the stored history timestamp is older than 6 hours,
         clear the history and reset the timestamp.
-        
+
         Returns:
             list: The current valid history.
         """
@@ -235,17 +237,52 @@ class MorpheusBot:
 
     async def process_message(self, text: str):
         """
-        Wrapper for self.agent.run() that passes along the message history as well.
-        Updates the history by calling set_history() on the returned result.
+        Processes a message by passing it to the agent and transforms the resulting new messages into
+        a Slack Bolt block formatted dictionary. The method collects each new part from the agent's output.
         
-        Arguments:
-            text: The input text to process.
+        Args:
+            text (str): The input text message.
         Returns:
-            The result of the agent.run() call.
+            dict: A dictionary following the Slack Bolt block format.
         """
         self.audit_logger.info(f"Processing message: {text.strip()}")
         result = await self.agent.run(text, message_history=self.get_history())
         self.log_messages(result, self.history)
         self.audit_logger.info(f"Token usage: {result.usage()}")
         self.set_history(result.all_messages())
-        return result
+
+        slack_message = {
+            "blocks": [
+                {
+                    "type": "rich_text",
+                    "elements": [
+                        {
+                            "type": "rich_text_section",
+                            "elements": []
+                        }
+                    ]
+                }
+            ],
+            "text": result.data
+        }
+        elements = slack_message["blocks"][0]["elements"][0]["elements"]
+
+        for msg in result.new_messages():
+            for part in msg.parts:
+                if isinstance(part, TextPart) and part.has_content():
+                    elements.append({
+                        "type": "text",
+                        "text": part.content + "\n"
+                    })
+                elif isinstance(part, ToolCallPart):
+                    tool_args = f": {part.args}" if part.has_content() else ""
+                    # Choose a random emoji for fun
+                    elements.append({
+                        "type": "emoji",
+                        "name": random.choice(["robot_face", "gear", "wrench", "hammer_and_wrench", "white_check_mark", "heavy_check_mark"])
+                    })
+                    elements.append({
+                        "type": "text",
+                        "text": f" Called {part.tool_name}{tool_args}\n"
+                    })
+        return slack_message

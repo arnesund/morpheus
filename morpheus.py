@@ -83,10 +83,9 @@ async def handle_message(body, say):
         # Select the appropriate bot instance.
         current_bot = select_bot(channel_id)
         # Process the message using the bot's process_message() wrapper.
-        result = await current_bot.process_message(message_text)
-        response_text = result.data
+        slack_message_dict = await current_bot.process_message(message_text)
         try:
-            await say(response_text)
+            await say(slack_message_dict)
         except SlackApiError as e:
             logger.error(f"Failed to post message: {e}")
 
