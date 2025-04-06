@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import logging
+import signal
 import sys
 from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
@@ -92,9 +93,21 @@ async def handle_message(body, say):
 # Main entry point to start the Socket Mode handler.
 async def main():
     socket_mode_handler = AsyncSocketModeHandler(app, SLACK_APP_TOKEN)
-    auth_test = await app.client.auth_test()
-    logger.info(f"Connected as {auth_test.get('user')}")
-    await socket_mode_handler.start_async()
+
+    try:
+        auth_test = await app.client.auth_test()
+        logger.info(f"Connected as {auth_test.get('user')}")
+        await socket_mode_handler.start_async()
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received, shutting down gracefully...")
+    finally:
+        await socket_mode_handler.client.close()
+        logger.info("Application shut down successfully.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received")
+    except Exception as e:
+        logger.exception(f"Unhandled exception")
