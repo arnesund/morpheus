@@ -252,22 +252,21 @@ class MorpheusBot:
         self.set_history(result.all_messages())
 
         slack_message = {
-            "blocks": [
-                {
-                    "type": "rich_text",
-                    "elements": [
-                        {
-                            "type": "rich_text_section",
-                            "elements": []
-                        }
-                    ]
-                }
-            ],
+            "blocks": [],
             "text": result.data
         }
-        elements = slack_message["blocks"][0]["elements"][0]["elements"]
-
         for msg in result.new_messages():
+            block = {
+                "type": "rich_text",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": []
+                    }
+                ]
+            }
+            elements = block["elements"][0]["elements"]
+
             for part in msg.parts:
                 if isinstance(part, TextPart) and part.has_content():
                     elements.append({
@@ -279,10 +278,13 @@ class MorpheusBot:
                     # Choose a random emoji for fun
                     elements.append({
                         "type": "emoji",
-                        "name": random.choice(["robot_face", "gear", "wrench", "hammer_and_wrench", "white_check_mark", "heavy_check_mark"])
+                        "name": random.choice(["robot_face", "gear", "white_check_mark"])
                     })
                     elements.append({
                         "type": "text",
                         "text": f" Called {part.tool_name}{tool_args}\n"
                     })
+
+            slack_message["blocks"].append(block)
+
         return slack_message
