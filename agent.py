@@ -74,7 +74,7 @@ class MorpheusBot:
             Start every interaction with a full list of all pending tasks, to prime the answers.
             """
             tasks = query_task_database(
-                "SELECT id, description, time_added, due, tags, recurrence FROM tasks ORDER BY time_added DESC"
+                "SELECT id, description, time_added, due, tags, recurrence FROM tasks WHERE time_complete IS NULL ORDER BY time_added DESC"
             )
             if not tasks:
                 return ""
