@@ -14,6 +14,6 @@ wheels/
 *.db
 messages.json
 backups/
-system_prompt.md
+system_prompt*.md
 logs/
 notes/

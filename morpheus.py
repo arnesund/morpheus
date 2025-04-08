@@ -42,12 +42,17 @@ system_prompt_filepath = "system_prompt.md"
 if os.path.exists(system_prompt_filepath):
     with open(system_prompt_filepath, "r", encoding="utf-8") as file:
         system_prompt = file.read()
+# Read in a translated version if exists
+system_prompt_nb_filepath = "system_prompt_nb.md"
+if os.path.exists(system_prompt_nb_filepath):
+    with open(system_prompt_nb_filepath, "r", encoding="utf-8") as file:
+        system_prompt_nb = file.read()
 
 # Instantiate MorpheusBot instances:
 # - One for the tasks channel (default database filename will be used).
 # - One for the morpheus channel.
 # - One for the worktasks channel (passing "worktasks.db" as the database filename).
-bot_tasks = MorpheusBot(system_prompt=system_prompt)
+bot_tasks = MorpheusBot(system_prompt=system_prompt_nb)
 bot_morpheus = MorpheusBot(system_prompt=system_prompt)
 bot_worktasks = MorpheusBot("worktasks.db", system_prompt=system_prompt)
 
