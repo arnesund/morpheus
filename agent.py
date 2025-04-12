@@ -96,7 +96,8 @@ class MorpheusBot:
                 time_complete TEXT,
                 due TEXT DEFAULT '',
                 tags TEXT DEFAULT '',
-                recurrence TEXT DEFAULT ''
+                recurrence TEXT DEFAULT '',
+                points INT DEFAULT 1
 
             Important details on how to use this dataset and the fields:
             The 'time_added' and 'time_complete' fields are stored as ISO 8601 strings.
@@ -109,6 +110,8 @@ class MorpheusBot:
             The 'tags' field is a comma-separated list of lowercased tags. Tags are used to group tasks.
             When multiple tags are used, split them by comma to understand the task better.
             The 'tags' field is empty for tasks that have no tags yet. Suggest tags that might be useful.
+            The 'points' field is used as rewards for completing tasks. Small tasks award 1 point and bigger tasks more points.
+            Help the user to complete tasks to increase their total XP.
 
             Args:
                 query (str): The SQL query to execute.
@@ -157,7 +160,8 @@ class MorpheusBot:
                 time_complete TEXT,
                 due TEXT DEFAULT '',
                 tags TEXT DEFAULT '',
-                recurrence TEXT DEFAULT ''
+                recurrence TEXT DEFAULT '',
+                points INT DEFAULT 1
             )
             '''
         )
@@ -175,6 +179,10 @@ class MorpheusBot:
 
         if "recurrence" not in columns:
             cursor.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT ''")
+            conn.commit()
+
+        if "points" not in columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN points INT DEFAULT 1")
             conn.commit()
 
         conn.close()
