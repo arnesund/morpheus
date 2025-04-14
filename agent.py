@@ -46,11 +46,15 @@ class MorpheusBot:
         # Initialize (or create) the SQLite database for tasks.
         self.init_db()
 
+        # OpenAI by default, but Claude if necessary API key is set
+        llm_model = "anthropic:claude-3-7-sonnet-latest" if os.getenv("ANTHROPIC_API_KEY") else "openai:gpt-4o"
+
         # Initialize the agent with the given system prompt.
         self.agent = Agent(
-            model='openai:gpt-4o',
+            model=llm_model,
             system_prompt=system_prompt,
         )
+
 
         # Add dynamic system prompt snippets as well.
         @self.agent.system_prompt

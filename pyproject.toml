@@ -8,6 +8,7 @@ dependencies = [
     "aiohttp>=3.11.13",
     "openai>=1.66.3",
     "pydantic-ai>=0.0.40",
+    "pydantic-ai-slim[anthropic]>=0.0.40",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "slack-bolt>=1.22.0",
