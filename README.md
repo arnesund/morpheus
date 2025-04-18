@@ -18,6 +18,16 @@ SLACK_SIGNING_SECRET="..."
 MORPHEUS_CHANNEL_ID=""
 TASKS_CHANNEL_ID=""
 WORK_TASKS_CHANNEL_ID=""
+DENO_PATH=""
+```
+
+## Installing required dependencies for the MCP Run Python server
+
+The server uses deno so make sure to install that first: https://docs.deno.com/runtime/
+
+Run the following command to get dependencies for the Run Python server:
+```
+deno run -N -R=node_modules -W=node_modules --node-modules-dir=auto jsr:@pydantic/mcp-run-python warmup
 ```
 
 ## How to run

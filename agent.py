@@ -1,16 +1,18 @@
-import os
+import asyncio
 import json
-import sqlite3
 import logging
+import openai
+import os
 import random
+import sqlite3
 import time
 from logging.handlers import TimedRotatingFileHandler
 from datetime import date, datetime
 from dotenv import load_dotenv
-import openai
 from pydantic_core import to_jsonable_python
-from pydantic_ai import Agent
 from pydantic_ai.messages import TextPart, ToolCallPart
+from pydantic_ai import Agent, capture_run_messages
+from pydantic_ai.mcp import MCPServerStdio
 
 class MorpheusBot:
     def __init__(self, db_filename: str = "tasks.db", system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity."):
@@ -34,7 +36,7 @@ class MorpheusBot:
 
         load_dotenv()
         # Validate that required environment variables are present.
-        required_vars = ['OPENAI_API_KEY']
+        required_vars = ["OPENAI_API_KEY", "DENO_PATH"]
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -46,6 +48,20 @@ class MorpheusBot:
         # Initialize (or create) the SQLite database for tasks.
         self.init_db()
 
+        # Run Python code sandboxed using Pyodide as a MCP server
+        run_python_server = MCPServerStdio(
+            os.getenv("DENO_PATH"),
+            args=[
+                "run",
+                "-N",
+                "-R=node_modules",
+                "-W=node_modules",
+                "--node-modules-dir=auto",
+                "jsr:@pydantic/mcp-run-python",
+                "stdio",
+            ],
+        )
+
         # OpenAI by default, but Claude if necessary API key is set
         llm_model = "anthropic:claude-3-7-sonnet-latest" if os.getenv("ANTHROPIC_API_KEY") else "openai:gpt-4o"
 
@@ -53,8 +69,8 @@ class MorpheusBot:
         self.agent = Agent(
             model=llm_model,
             system_prompt=system_prompt,
+            mcp_servers=[run_python_server],
         )
-
 
         # Add dynamic system prompt snippets as well.
         @self.agent.system_prompt
@@ -258,7 +274,8 @@ class MorpheusBot:
             dict: A dictionary following the Slack Bolt block format.
         """
         self.audit_logger.info(f"Processing message: {text.strip()}")
-        result = await self.agent.run(text, message_history=self.get_history())
+        async with self.agent.run_mcp_servers():
+            result = await self.agent.run(text, message_history=self.get_history())
         self.log_messages(result, self.history)
         self.audit_logger.info(f"Token usage: {result.usage()}")
         self.set_history(result.all_messages())
