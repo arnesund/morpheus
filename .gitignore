@@ -8,6 +8,7 @@ wheels/
 .venv
 .vscode
 *.code-workspace
+node_modules/
 
 # App specific data
 .env
