@@ -303,15 +303,32 @@ class MorpheusBot:
                         "text": part.content + "\n"
                     })
                 elif isinstance(part, ToolCallPart):
-                    tool_args = f": {part.args}" if part.has_content() else ""
-                    # Choose a random emoji for fun
+                    # Choose emoji based on tool name
+                    emoji_name = "gear"
+                    
+                    if part.tool_name == "query_task_database" and part.has_content():
+                        # For SQL queries, customize emoji based on query type
+                        query_text = str(part.args).upper().strip() if part.args else ""
+                        if query_text.startswith("SELECT"):
+                            emoji_name = "mag"  # Magnifying glass for SELECT
+                        elif query_text.startswith("INSERT"):
+                            emoji_name = "heavy_plus_sign"  # Plus for INSERT
+                        elif query_text.startswith("UPDATE"):
+                            emoji_name = "pencil"  # Pencil for UPDATE
+                        elif query_text.startswith("DELETE"):
+                            emoji_name = "wastebasket"  # Trash for DELETE
+                        else:
+                            emoji_name = "card_index_dividers"  # Default for other DB operations
+                    elif part.tool_name == "write_notes_to_notebook":
+                        emoji_name = "memo"  # Memo for notebook operations
+                    
                     elements.append({
                         "type": "emoji",
-                        "name": random.choice(["robot_face", "gear", "white_check_mark"])
+                        "name": emoji_name
                     })
                     elements.append({
                         "type": "text",
-                        "text": f" Called {part.tool_name}{tool_args}\n"
+                        "text": f" Called {part.tool_name}\n"
                     })
 
             slack_message["blocks"].append(block)
