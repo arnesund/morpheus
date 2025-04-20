@@ -148,7 +148,7 @@ class MorpheusBot:
         @self.agent.tool_plain()
         def write_notes_to_notebook(text: str) -> str:
             """
-            Write the given text to your notebook. Use this tool when you want to take a note in markdown format about something you learned about the user. Do not write tasks here. Only write thoughts and observations.
+            Write the given text to your notebook. Use this tool when you want to take a note in markdown format about something you learned about the user. Do not write tasks here. Only write thoughts and observations. It is not necessary to mention that the user completed a task. Write concisely.
 
             Args:
                 text (str): The text to write to the notebook.
@@ -250,15 +250,15 @@ class MorpheusBot:
 
     def get_history(self):
         """
-        Return the current message history. If the stored history timestamp is older than 6 hours,
+        Return the current message history. If the stored history timestamp is older than 1 hour,
         clear the history and reset the timestamp.
 
         Returns:
             list: The current valid history.
         """
-        six_hours = 6 * 3600
+        one_hour = 1 * 3600
         current_time = time.time()
-        if self.history_timestamp and (current_time - self.history_timestamp > six_hours):
+        if self.history_timestamp and (current_time - self.history_timestamp > one_hour):
             self.history = []
             self.history_timestamp = None
         return self.history
