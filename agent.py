@@ -15,10 +15,14 @@ from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.mcp import MCPServerStdio
 
 class MorpheusBot:
-    def __init__(self, db_filename: str = "tasks.db", system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity."):
+    def __init__(self, 
+                 db_filename: str = "tasks.db", 
+                 system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity.",
+                 notebook_filename: str = "notebook.md"):
         self.DB_FILENAME = db_filename
         self.log_dir = "logs"
         self.notes_dir = "notes"
+        self.notebook_filename = notebook_filename
 
         # Ensure the required directories exist
         for d in [self.log_dir, self.notes_dir]:
@@ -80,9 +84,9 @@ class MorpheusBot:
         @self.agent.system_prompt
         def read_notes() -> str:
             """
-            Read in the contents of the notebook.md file.
+            Read in the contents of the notebook file.
             """
-            filepath = f"{self.notes_dir}/notebook.md"
+            filepath = f"{self.notes_dir}/{self.notebook_filename}"
             if not os.path.exists(filepath):
                 return ""
             with open(filepath, "r") as f:
@@ -155,7 +159,7 @@ class MorpheusBot:
             Returns:
                 str: A confirmation message.
             """
-            filepath = f"{self.notes_dir}/notebook.md"
+            filepath = f"{self.notes_dir}/{self.notebook_filename}"
             try:
                 with open(filepath, "a") as f:
                     f.write(text + "\n")

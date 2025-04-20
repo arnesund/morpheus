@@ -49,12 +49,12 @@ if os.path.exists(system_prompt_nb_filepath):
         system_prompt_nb = file.read()
 
 # Instantiate MorpheusBot instances:
-# - One for the tasks channel (default database filename will be used).
-# - One for the morpheus channel.
-# - One for the worktasks channel (passing "worktasks.db" as the database filename).
-bot_tasks = MorpheusBot(system_prompt=system_prompt_nb)
-bot_morpheus = MorpheusBot(system_prompt=system_prompt)
-bot_worktasks = MorpheusBot("worktasks.db", system_prompt=system_prompt)
+# - One for the tasks channel (default database filename and separate notebook).
+# - One for the morpheus channel (with the main notebook).
+# - One for the worktasks channel (separate DB and notebook).
+bot_tasks = MorpheusBot(system_prompt=system_prompt_nb, notebook_filename="notebook_tasks.md")
+bot_morpheus = MorpheusBot(system_prompt=system_prompt, notebook_filename="notebook.md")
+bot_worktasks = MorpheusBot("worktasks.db", system_prompt=system_prompt, notebook_filename="notebook_work.md")
 
 # Initialize the Slack Bolt asynchronous app using the bot token.
 app = AsyncApp(token=SLACK_BOT_TOKEN)
