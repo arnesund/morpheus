@@ -88,10 +88,16 @@ async def on_message(message: cl.Message):
                 bot.log_messages(result, bot.history)
                 bot.set_history(result.all_messages())
                 
-                response_content = ""
+                intermediate_content = ""
+                final_content = ""
                 tool_calls = []
                 
-                for msg in result.new_messages():
+                messages = result.new_messages()
+                
+                for i, msg in enumerate(messages):
+                    is_final_message = (i == len(messages) - 1)
+                    message_content = ""
+                    
                     for part in msg.parts:
                         if hasattr(part, 'has_content') and part.has_content():
                             if hasattr(part, 'tool_name'):  # For ToolCallPart
@@ -102,15 +108,20 @@ async def on_message(message: cl.Message):
                                 }
                                 tool_calls.append(tool_call_content)
                                 
-                                response_content += f"\n\nTool Call: {part.tool_name}\n"
+                                message_content += f"\n\nTool Call: {part.tool_name}\n"
                                 if hasattr(part, 'content') and part.content:
-                                    response_content += f"Result: {part.content}\n"
+                                    message_content += f"Result: {part.content}\n"
                             else:  # For TextPart
-                                response_content += part.content
+                                message_content += part.content
+                    
+                    if is_final_message:
+                        final_content = message_content
+                    else:
+                        intermediate_content += message_content
                 
-                step.output = response_content
+                step.output = intermediate_content
         
-        await cl.Message(content=response_content).send()
+        await cl.Message(content=final_content).send()
         
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
