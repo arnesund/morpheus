@@ -15,8 +15,8 @@ from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.mcp import MCPServerStdio
 
 class MorpheusBot:
-    def __init__(self, 
-                 db_filename: str = "tasks.db", 
+    def __init__(self,
+                 db_filename: str = "tasks.db",
                  system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity.",
                  notebook_filename: str = "notebook.md"):
         self.DB_FILENAME = db_filename
@@ -271,7 +271,7 @@ class MorpheusBot:
         """
         Processes a message by passing it to the agent and transforms the resulting new messages into
         a Slack Bolt block formatted dictionary. The method collects each new part from the agent's output.
-        
+
         Args:
             text (str): The input text message.
         Returns:
@@ -309,7 +309,7 @@ class MorpheusBot:
                 elif isinstance(part, ToolCallPart):
                     # Choose emoji based on tool name
                     emoji_name = "gear"
-                    
+
                     if part.tool_name == "query_task_database" and part.has_content():
                         # For SQL queries, customize emoji based on query type
                         query_text = str(part.args).upper().strip() if part.args else ""
@@ -325,7 +325,7 @@ class MorpheusBot:
                             emoji_name = "card_index_dividers"  # Default for other DB operations
                     elif part.tool_name == "write_notes_to_notebook":
                         emoji_name = "memo"  # Memo for notebook operations
-                    
+
                     elements.append({
                         "type": "emoji",
                         "name": emoji_name
