@@ -12,4 +12,5 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "slack-bolt>=1.22.0",
+    "chainlit>=1.0.0",
 ]
