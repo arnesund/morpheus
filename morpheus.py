@@ -49,7 +49,8 @@ WORK_TASKS_CHANNEL_ID = os.getenv(
 
 def parse_arguments():
     """
-    Parse command line arguments for channel ID, notebook path, and task database path.
+    Parse command line arguments for channel ID, notebook path, task database path,
+    and system prompt file path.
     Returns default values if arguments are not provided.
     """
     parser = argparse.ArgumentParser(
@@ -70,12 +71,20 @@ def parse_arguments():
         help="Path to task database file (defaults to tasks.db)",
         default="tasks.db",
     )
+    parser.add_argument(
+        "--system-prompt",
+        help="Path to system prompt file (defaults to system_prompt.md)",
+        default="system_prompt.md",
+    )
     return parser.parse_args()
 
 
-# Use the contents of "system_prompt.md" as system prompt, if it exists
+# Parse command line arguments
+args = parse_arguments()
+
+# Use the contents of the system prompt file specified by command line argument
 system_prompt = ""
-system_prompt_filepath = "system_prompt.md"
+system_prompt_filepath = args.system_prompt
 if os.path.exists(system_prompt_filepath):
     with open(system_prompt_filepath, "r", encoding="utf-8") as file:
         system_prompt = file.read()
@@ -84,9 +93,6 @@ system_prompt_nb_filepath = "system_prompt_nb.md"
 if os.path.exists(system_prompt_nb_filepath):
     with open(system_prompt_nb_filepath, "r", encoding="utf-8") as file:
         system_prompt_nb = file.read()
-
-# Parse command line arguments
-args = parse_arguments()
 
 if not args.channel:
     logger.error(
@@ -102,13 +108,6 @@ bot = MorpheusBot(
 app = AsyncApp(token=SLACK_BOT_TOKEN)
 
 
-def select_bot(channel_id: str) -> MorpheusBot:
-    """
-    Returns the bot instance if the channel ID matches the configured channel.
-    This is a simplified version of the previous select_bot function
-    that handled multiple channels.
-    """
-    return bot
 
 
 # Listen for plain messages in the specified channel.
