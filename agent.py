@@ -11,6 +11,9 @@ from logging.handlers import TimedRotatingFileHandler
 import openai
 from dotenv import load_dotenv
 from pydantic_ai import Agent, capture_run_messages
+from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.messages import TextPart, ToolCallPart
 from pydantic_core import to_jsonable_python
@@ -76,16 +79,24 @@ class MorpheusBot:
             ],
         )
 
-        # OpenAI by default, but Claude if necessary API key is set
-        llm_model = (
-            "anthropic:claude-3-7-sonnet-latest"
-            if os.getenv("ANTHROPIC_API_KEY")
-            else "openai:gpt-4o"
+        # Use Claude if Anthropic API key is set
+        claude37sonnet = AnthropicModel("claude-3-7-sonnet-latest")
+        claude35sonnet = AnthropicModel("claude-3-5-sonnet-latest")
+        claude35haiku  = AnthropicModel("claude-3-5-haiku-latest")
+        o3mini = OpenAIModel("o3-mini")
+        gpt4o  = OpenAIModel("gpt-4o")
+        gpt41  = OpenAIModel("gpt-4.1")
+
+        preferred_model = FallbackModel(
+            claude37sonnet,
+            claude35haiku,
+            o3mini,
+            gpt4o
         )
 
         # Initialize the agent with the given system prompt.
         self.agent = Agent(
-            model=llm_model,
+            model=preferred_model,
             system_prompt=system_prompt,
             mcp_servers=[run_python_server],
         )
