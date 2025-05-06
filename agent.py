@@ -1,24 +1,28 @@
 import asyncio
 import json
 import logging
-import openai
 import os
 import random
 import sqlite3
 import time
-from logging.handlers import TimedRotatingFileHandler
 from datetime import date, datetime
+from logging.handlers import TimedRotatingFileHandler
+
+import openai
 from dotenv import load_dotenv
-from pydantic_core import to_jsonable_python
-from pydantic_ai.messages import TextPart, ToolCallPart
 from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.mcp import MCPServerStdio
+from pydantic_ai.messages import TextPart, ToolCallPart
+from pydantic_core import to_jsonable_python
+
 
 class MorpheusBot:
-    def __init__(self, 
-                 db_filename: str = "tasks.db", 
-                 system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity.",
-                 notebook_filename: str = "notebook.md"):
+    def __init__(
+        self,
+        db_filename: str = "tasks.db",
+        system_prompt: str = "You are Morpheus, the guide from The Matrix. You help the user manage their tasks with calm wisdom and clarity.",
+        notebook_filename: str = "notebook.md",
+    ):
         self.DB_FILENAME = db_filename
         self.log_dir = "logs"
         self.notes_dir = "notes"
@@ -33,9 +37,13 @@ class MorpheusBot:
         self.audit_logger.setLevel(logging.INFO)
         # Avoid adding duplicate handlers if the logger already has them.
         if not self.audit_logger.handlers:
-            audit_handler = TimedRotatingFileHandler(f"{self.log_dir}/auditlog.log", when="midnight", interval=1)
+            audit_handler = TimedRotatingFileHandler(
+                f"{self.log_dir}/auditlog.log", when="midnight", interval=1
+            )
             audit_handler.suffix = "%Y-%m-%d"
-            audit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            audit_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            )
             self.audit_logger.addHandler(audit_handler)
 
         load_dotenv()
@@ -43,7 +51,9 @@ class MorpheusBot:
         required_vars = ["OPENAI_API_KEY", "DENO_PATH"]
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         if missing_vars:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+            raise ValueError(
+                f"Missing required environment variables: {', '.join(missing_vars)}"
+            )
 
         # Initialize an empty message history.
         self.history = []
@@ -67,7 +77,11 @@ class MorpheusBot:
         )
 
         # OpenAI by default, but Claude if necessary API key is set
-        llm_model = "anthropic:claude-3-7-sonnet-latest" if os.getenv("ANTHROPIC_API_KEY") else "openai:gpt-4o"
+        llm_model = (
+            "anthropic:claude-3-7-sonnet-latest"
+            if os.getenv("ANTHROPIC_API_KEY")
+            else "openai:gpt-4o"
+        )
 
         # Initialize the agent with the given system prompt.
         self.agent = Agent(
@@ -90,7 +104,10 @@ class MorpheusBot:
             if not os.path.exists(filepath):
                 return ""
             with open(filepath, "r") as f:
-                return "Notes you've made so far, including your thoughts and observations:\n" + f.read()
+                return (
+                    "Notes you've made so far, including your thoughts and observations:\n"
+                    + f.read()
+                )
 
         @self.agent.system_prompt
         def fetch_pending_tasks() -> str:
@@ -102,8 +119,11 @@ class MorpheusBot:
             )
             if not tasks:
                 return ""
-            return ("Here is a list of all pending tasks ordered by most recently added first:\n" +
-                    "Columns are id, description, time_added, due, tags, recurrence\n" + tasks)
+            return (
+                "Here is a list of all pending tasks ordered by most recently added first:\n"
+                + "Columns are id, description, time_added, due, tags, recurrence\n"
+                + tasks
+            )
 
         # Register agent tools as inner asynchronous functions decorated with tool_plain.
         @self.agent.tool_plain()
@@ -167,7 +187,6 @@ class MorpheusBot:
             except Exception as e:
                 return f"Error writing to notebook: {e}"
 
-
     def init_db(self):
         """
         Initialize the SQLite database and create the tasks table if it doesn't exist.
@@ -176,7 +195,7 @@ class MorpheusBot:
         conn = sqlite3.connect(self.DB_FILENAME)
         cursor = conn.cursor()
         cursor.execute(
-            '''
+            """
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 description TEXT NOT NULL,
@@ -187,7 +206,7 @@ class MorpheusBot:
                 recurrence TEXT DEFAULT '',
                 points INT DEFAULT 1
             )
-            '''
+            """
         )
         conn.commit()
         cursor.execute("PRAGMA table_info(tasks)")
@@ -262,7 +281,9 @@ class MorpheusBot:
         """
         one_hour = 1 * 3600
         current_time = time.time()
-        if self.history_timestamp and (current_time - self.history_timestamp > one_hour):
+        if self.history_timestamp and (
+            current_time - self.history_timestamp > one_hour
+        ):
             self.history = []
             self.history_timestamp = None
         return self.history
@@ -271,7 +292,7 @@ class MorpheusBot:
         """
         Processes a message by passing it to the agent and transforms the resulting new messages into
         a Slack Bolt block formatted dictionary. The method collects each new part from the agent's output.
-        
+
         Args:
             text (str): The input text message.
         Returns:
@@ -284,32 +305,21 @@ class MorpheusBot:
         self.audit_logger.info(f"Token usage: {result.usage()}")
         self.set_history(result.all_messages())
 
-        slack_message = {
-            "blocks": [],
-            "text": result.data
-        }
+        slack_message = {"blocks": [], "text": result.data}
         for msg in result.new_messages():
             block = {
                 "type": "rich_text",
-                "elements": [
-                    {
-                        "type": "rich_text_section",
-                        "elements": []
-                    }
-                ]
+                "elements": [{"type": "rich_text_section", "elements": []}],
             }
             elements = block["elements"][0]["elements"]
 
             for part in msg.parts:
                 if isinstance(part, TextPart) and part.has_content():
-                    elements.append({
-                        "type": "text",
-                        "text": part.content + "\n"
-                    })
+                    elements.append({"type": "text", "text": part.content + "\n"})
                 elif isinstance(part, ToolCallPart):
                     # Choose emoji based on tool name
                     emoji_name = "gear"
-                    
+
                     if part.tool_name == "query_task_database" and part.has_content():
                         # For SQL queries, customize emoji based on query type
                         query_text = str(part.args).upper().strip() if part.args else ""
@@ -322,18 +332,16 @@ class MorpheusBot:
                         elif query_text.startswith("DELETE"):
                             emoji_name = "wastebasket"  # Trash for DELETE
                         else:
-                            emoji_name = "card_index_dividers"  # Default for other DB operations
+                            emoji_name = (
+                                "card_index_dividers"  # Default for other DB operations
+                            )
                     elif part.tool_name == "write_notes_to_notebook":
                         emoji_name = "memo"  # Memo for notebook operations
-                    
-                    elements.append({
-                        "type": "emoji",
-                        "name": emoji_name
-                    })
-                    elements.append({
-                        "type": "text",
-                        "text": f" Called {part.tool_name}\n"
-                    })
+
+                    elements.append({"type": "emoji", "name": emoji_name})
+                    elements.append(
+                        {"type": "text", "text": f" Called {part.tool_name}\n"}
+                    )
 
             slack_message["blocks"].append(block)
 
