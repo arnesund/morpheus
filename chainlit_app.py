@@ -105,7 +105,7 @@ async def on_message(message: cl.Message):
                                 response_content += f"\n\nTool Call: {part.tool_name}\n"
                                 if hasattr(part, 'args') and part.args:
                                     response_content += f"Arguments: {part.args}\n"
-                                if part.content:
+                                if hasattr(part, 'content') and part.content:
                                     response_content += f"Result: {part.content}\n"
                             else:  # For TextPart
                                 response_content += part.content
