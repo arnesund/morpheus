@@ -44,7 +44,7 @@ async def on_chat_start():
     if morpheus_bot:
         cl.user_session.set("bot", morpheus_bot)
         
-        clear_action = cl.Action(name="clear_chat", label="Clear Chat", description="Clear the conversation history")
+        clear_action = cl.Action(name="clear_chat", label="Clear Chat", description="Clear the conversation history", payload={})
         await cl.Message(
             content="Welcome! I'm Morpheus, your task management assistant. How can I help you today?",
             actions=[clear_action]
