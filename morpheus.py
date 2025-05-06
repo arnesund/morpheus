@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import logging
@@ -43,6 +44,33 @@ WORK_TASKS_CHANNEL_ID = os.getenv(
     "WORK_TASKS_CHANNEL_ID"
 )  # Channel ID for "#worktasks"
 
+
+def parse_arguments():
+    """
+    Parse command line arguments for channel ID, notebook path, and task database path.
+    Returns default values if arguments are not provided.
+    """
+    parser = argparse.ArgumentParser(
+        description="Start Morpheus Slackbot for a single channel"
+    )
+    parser.add_argument(
+        "--channel",
+        help="Slack channel ID to listen to (defaults to MORPHEUS_CHANNEL_ID env var)",
+        default=MORPHEUS_CHANNEL_ID,
+    )
+    parser.add_argument(
+        "--notebook",
+        help="Path to notebook file (defaults to notebook.md)",
+        default="notebook.md",
+    )
+    parser.add_argument(
+        "--db",
+        help="Path to task database file (defaults to tasks.db)",
+        default="tasks.db",
+    )
+    return parser.parse_args()
+
+
 # Use the contents of "system_prompt.md" as system prompt, if it exists
 system_prompt = ""
 system_prompt_filepath = "system_prompt.md"
@@ -55,16 +83,17 @@ if os.path.exists(system_prompt_nb_filepath):
     with open(system_prompt_nb_filepath, "r", encoding="utf-8") as file:
         system_prompt_nb = file.read()
 
-# Instantiate MorpheusBot instances:
-# - One for the tasks channel (default database filename and separate notebook).
-# - One for the morpheus channel (with the main notebook).
-# - One for the worktasks channel (separate DB and notebook).
-bot_tasks = MorpheusBot(
-    system_prompt=system_prompt_nb, notebook_filename="notebook_tasks.md"
-)
-bot_morpheus = MorpheusBot(system_prompt=system_prompt, notebook_filename="notebook.md")
-bot_worktasks = MorpheusBot(
-    "worktasks.db", system_prompt=system_prompt, notebook_filename="notebook_work.md"
+# Parse command line arguments
+args = parse_arguments()
+
+if not args.channel:
+    logger.error(
+        "No channel ID provided. Use --channel argument or set MORPHEUS_CHANNEL_ID environment variable."
+    )
+    sys.exit(1)
+
+bot = MorpheusBot(
+    db_filename=args.db, system_prompt=system_prompt, notebook_filename=args.notebook
 )
 
 # Initialize the Slack Bolt asynchronous app using the bot token.
@@ -73,36 +102,27 @@ app = AsyncApp(token=SLACK_BOT_TOKEN)
 
 def select_bot(channel_id: str) -> MorpheusBot:
     """
-    Selects the correct MorpheusBot instance based on the channel ID.
+    Returns the bot instance if the channel ID matches the configured channel.
+    This is a simplified version of the previous select_bot function
+    that handled multiple channels.
     """
-    if channel_id == TASKS_CHANNEL_ID:
-        return bot_tasks
-    elif channel_id == MORPHEUS_CHANNEL_ID:
-        return bot_morpheus
-    elif channel_id == WORK_TASKS_CHANNEL_ID:
-        return bot_worktasks
-    else:
-        # Fallback: if message comes from a channel not explicitly handled,
-        # you might choose to use one of the bots or ignore it.
-        return bot_morpheus
+    return bot
 
 
-# Listen for plain messages in designated channels.
+# Listen for plain messages in the specified channel.
 @app.event("message")
 async def handle_message(body, say):
     event = body.get("event", {})
     channel_id = event.get("channel")
     message_text = event.get("text", "")
 
-    # Only process messages in the designated channels.
-    if channel_id in [TASKS_CHANNEL_ID, MORPHEUS_CHANNEL_ID, WORK_TASKS_CHANNEL_ID]:
+    # Only process messages in the specified channel.
+    if channel_id == args.channel:
         logger.debug(f"Received message in channel {channel_id}: {message_text}")
         # Log the message for debugging/information purposes.
         logger.info(f"Channel: {channel_id} | Message: {message_text}")
-        # Select the appropriate bot instance.
-        current_bot = select_bot(channel_id)
         # Process the message using the bot's process_message() wrapper.
-        slack_message_dict = await current_bot.process_message(message_text)
+        slack_message_dict = await bot.process_message(message_text)
         try:
             await say(slack_message_dict)
         except SlackApiError as e:
@@ -126,6 +146,9 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        logger.info(
+            f"Starting Morpheus bot for channel {args.channel} with notebook {args.notebook} and database {args.db}"
+        )
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received")
