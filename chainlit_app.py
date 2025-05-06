@@ -82,7 +82,7 @@ async def on_message(message: cl.Message):
         result_msg = cl.Message(content="")
         
         async with bot.agent.run_mcp_servers():
-            with cl.Step(name="Thinking...") as step:
+            with cl.Step(name="Processing request") as step:
                 result = await bot.agent.run(message.content, message_history=bot.get_history())
                 
                 bot.log_messages(result, bot.history)
