@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import sqlite3
+import sys
 import time
 from datetime import date, datetime
 from logging.handlers import TimedRotatingFileHandler
@@ -11,11 +12,11 @@ from logging.handlers import TimedRotatingFileHandler
 import openai
 from dotenv import load_dotenv
 from pydantic_ai import Agent, capture_run_messages
+from pydantic_ai.mcp import MCPServerStdio
+from pydantic_ai.messages import TextPart, ToolCallPart
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai.mcp import MCPServerStdio
-from pydantic_ai.messages import TextPart, ToolCallPart
 from pydantic_core import to_jsonable_python
 
 
@@ -82,17 +83,12 @@ class MorpheusBot:
         # Use Claude if Anthropic API key is set
         claude37sonnet = AnthropicModel("claude-3-7-sonnet-latest")
         claude35sonnet = AnthropicModel("claude-3-5-sonnet-latest")
-        claude35haiku  = AnthropicModel("claude-3-5-haiku-latest")
+        claude35haiku = AnthropicModel("claude-3-5-haiku-latest")
         o3mini = OpenAIModel("o3-mini")
-        gpt4o  = OpenAIModel("gpt-4o")
-        gpt41  = OpenAIModel("gpt-4.1")
+        gpt4o = OpenAIModel("gpt-4o")
+        gpt41 = OpenAIModel("gpt-4.1")
 
-        preferred_model = FallbackModel(
-            claude37sonnet,
-            claude35haiku,
-            o3mini,
-            gpt4o
-        )
+        preferred_model = FallbackModel(claude37sonnet, claude35haiku, o3mini, gpt4o)
 
         # Initialize the agent with the given system prompt.
         self.agent = Agent(
@@ -111,14 +107,32 @@ class MorpheusBot:
             """
             Read in the contents of the notebook file.
             """
+            from notes_utils import load_notes
+
             filepath = f"{self.notes_dir}/{self.notebook_filename}"
             if not os.path.exists(filepath):
                 return ""
-            with open(filepath, "r") as f:
-                return (
-                    "Notes you've made so far, including your thoughts and observations:\n"
-                    + f.read()
-                )
+
+            notes = load_notes(filepath)
+
+            if not notes:
+                return ""
+
+            result = "Notes you've made so far, organized by category:\n\n"
+
+            categories = {}
+            for note in notes:
+                if note.category not in categories:
+                    categories[note.category] = []
+                categories[note.category].append(note.content)
+
+            for category, contents in categories.items():
+                result += f"### {category}\n"
+                for content in contents:
+                    result += f"- {content}\n"
+                result += "\n"
+
+            return result
 
         @self.agent.system_prompt
         def fetch_pending_tasks() -> str:
@@ -183,20 +197,28 @@ class MorpheusBot:
         @self.agent.tool_plain()
         def write_notes_to_notebook(text: str) -> str:
             """
-            Write the given text to your notebook. Use this tool when you want to take a note in markdown format about something you learned about the user. Do not write tasks here. Only write thoughts and observations. It is not necessary to mention that the user completed a task. Write concisely.
+            Write the given text to your notebook as a categorized note. Use this tool to record important memories
+            about the user that are NOT task-related. Valid categories include:
+            - [PREFERENCE] for user preferences, likes, dislikes, etc.
+            - [SCHEDULE] for recurring events, meetings, routines, etc.
+            - [OBSERVATION] for general observations about the user
+
+            Format your note with a category tag at the beginning like [CATEGORY] followed by your note.
+            For example: [PREFERENCE] User prefers to be reminded about tasks in the morning.
+
+            Do NOT use this for task-related information such as task completion status, due dates, or deadlines.
+            Task information belongs in the task database, not in notes.
 
             Args:
                 text (str): The text to write to the notebook.
             Returns:
                 str: A confirmation message.
             """
+            from notes_utils import add_note
+
             filepath = f"{self.notes_dir}/{self.notebook_filename}"
-            try:
-                with open(filepath, "a") as f:
-                    f.write(text + "\n")
-                return "Text written to notebook."
-            except Exception as e:
-                return f"Error writing to notebook: {e}"
+            success, message = add_note(filepath, text)
+            return message
 
     def init_db(self):
         """
