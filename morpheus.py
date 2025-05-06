@@ -108,8 +108,6 @@ bot = MorpheusBot(
 app = AsyncApp(token=SLACK_BOT_TOKEN)
 
 
-
-
 # Listen for plain messages in the specified channel.
 @app.event("message")
 async def handle_message(body, say):
