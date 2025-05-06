@@ -14,3 +14,9 @@ dependencies = [
     "slack-bolt>=1.22.0",
     "chainlit>=1.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "isort>=6.0.1",
+]
