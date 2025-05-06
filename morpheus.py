@@ -16,6 +16,8 @@ from agent import MorpheusBot
 
 load_dotenv()
 
+os.makedirs("logs", exist_ok=True)
+
 # Set up logging to both stdout and a file with daily rotation.
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
