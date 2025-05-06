@@ -117,3 +117,6 @@ async def on_message(message: cl.Message):
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
         await cl.Message(content=f"I encountered an error while processing your request. Please try again or contact support if the issue persists.").send()
+
+if __name__ == "__main__":
+    cl.run()
