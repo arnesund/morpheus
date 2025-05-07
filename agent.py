@@ -103,6 +103,216 @@ class MorpheusBot:
                 mcp_servers=[run_python_server],
             )
 
+            @self.agent.system_prompt
+            def add_the_date() -> str:
+                return f'The current date is {date.today()} and it is a {date.today().strftime("%A")}.'
+
+            @self.agent.system_prompt
+            def read_notes() -> str:
+                """
+                Read notes from the database and format them by category.
+                """
+                try:
+                    rows = self.query_db(
+                        "SELECT content, category, timestamp FROM notes ORDER BY timestamp DESC"
+                    )
+
+                    if not rows:
+                        return ""
+
+                    result = "Notes you've made so far, organized by category:\n\n"
+
+                    categories = {}
+                    for row in rows:
+                        content, category, timestamp = row
+                        if category not in categories:
+                            categories[category] = []
+                        categories[category].append(content)
+
+                    for category, contents in categories.items():
+                        result += f"### {category}\n"
+                        for content in contents:
+                            result += f"- {content}\n"
+                        result += "\n"
+
+                    return result
+                except sqlite3.Error as e:
+                    return f"Error reading notes: {e}"
+
+            @self.agent.system_prompt
+            def fetch_pending_tasks() -> str:
+                """
+                Start every interaction with a full list of all pending tasks, to prime the answers.
+                """
+                tasks = query_task_database(
+                    "SELECT id, description, time_added, due, tags, recurrence FROM tasks WHERE time_complete IS NULL ORDER BY time_added DESC"
+                )
+                if not tasks:
+                    return ""
+                return (
+                    "Here is a list of all pending tasks ordered by most recently added first:\n"
+                    + "Columns are id, description, time_added, due, tags, recurrence\n"
+                    + tasks
+                )
+
+            @self.agent.tool_plain()
+            def query_task_database(query: str, params: tuple = ()) -> str:
+                """
+                Query the task database with a given SQL query. You can read data with
+                SELECT queries and update data with INSERT and UPDATE queries.
+                The database is an SQLite database with a single table named 'tasks'.
+
+                Schema for the 'tasks' table:
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    description TEXT NOT NULL,
+                    time_added TEXT NOT NULL,
+                    time_complete TEXT,
+                    due TEXT DEFAULT '',
+                    tags TEXT DEFAULT '',
+                    recurrence TEXT DEFAULT '',
+                    points INT DEFAULT 1
+
+                Important details on how to use this dataset and the fields:
+                The 'time_added' and 'time_complete' fields are stored as ISO 8601 strings.
+                The 'time_complete' field is empty for tasks that are not yet complete.
+                When marking a task as complete, always check the 'recurrence' field to see if the task should be rescheduled.
+                If a task should be rescheduled, add a new task with the same description and tags, but with a new 'due' date.
+                The 'due' field can be a date, time, or a generic description of a future period.
+                The 'recurrence' field is a string that describes how often the task should recur.
+                The 'recurrence' field is empty for tasks that do not recur, and that applies to the majority of tasks.
+                The 'tags' field is a comma-separated list of lowercased tags. Tags are used to group tasks.
+                When multiple tags are used, split them by comma to understand the task better.
+                The 'tags' field is empty for tasks that have no tags yet. Suggest tags that might be useful.
+                The 'points' field is used as rewards for completing tasks. Small tasks award 1 point and bigger tasks more points.
+                Help the user to complete tasks to increase their total XP.
+
+                Args:
+                    query (str): The SQL query to execute.
+                    params (tuple): The parameters to pass to the query, if any.
+                Returns:
+                    str: The result of the query as a formatted string.
+                """
+                try:
+                    rows = self.query_db(query, params)
+                    return "\n".join([str(row) for row in rows])
+                except sqlite3.Error as e:
+                    return f"Error executing query: {e}"
+
+            @self.agent.tool_plain()
+            def read_notes_from_notebook(
+                category: str = None, content_contains: str = None, days_ago: int = None
+            ) -> str:
+                """
+                Read notes from the database with optional filtering by category, content substring, and time period.
+
+                Args:
+                    category (str, optional): Filter notes by category (e.g., "Preference", "Schedule", "Observation").
+                    content_contains (str, optional): Filter notes by substring in content.
+                    days_ago (int, optional): Filter notes from the last N days.
+                Returns:
+                    str: Formatted notes matching the filter criteria.
+                """
+                try:
+                    query = "SELECT content, category, timestamp FROM notes"
+                    params = []
+                    where_clauses = []
+
+                    if category:
+                        where_clauses.append("category = ?")
+                        params.append(category)
+
+                    if content_contains:
+                        where_clauses.append("content LIKE ?")
+                        params.append(f"%{content_contains}%")
+
+                    if days_ago:
+                        date_n_days_ago = (
+                            datetime.now() - timedelta(days=days_ago)
+                        ).isoformat()
+                        where_clauses.append("timestamp >= ?")
+                        params.append(date_n_days_ago)
+
+                    if where_clauses:
+                        query += " WHERE " + " AND ".join(where_clauses)
+
+                    query += " ORDER BY timestamp DESC"
+
+                    rows = self.query_db(query, tuple(params))
+
+                    if not rows:
+                        return "No notes found matching the filter criteria."
+
+                    result = "Notes"
+                    if category:
+                        result += f" in category '{category}'"
+                    if content_contains:
+                        result += f" containing '{content_contains}'"
+                    if days_ago:
+                        result += f" from the last {days_ago} days"
+                    result += ":\n\n"
+
+                    categories = {}
+                    for row in rows:
+                        content, category, timestamp = row
+                        if category not in categories:
+                            categories[category] = []
+                        date_str = datetime.fromisoformat(timestamp).strftime(
+                            "%Y-%m-%d"
+                        )
+                        categories[category].append((content, date_str))
+
+                    for category, content_items in categories.items():
+                        result += f"### {category}\n"
+                        for content, date in content_items:
+                            result += f"- [{date}] {content}\n"
+                        result += "\n"
+
+                    return result
+                except sqlite3.Error as e:
+                    return f"Error reading notes: {e}"
+                except Exception as e:
+                    return f"Error: {e}"
+
+            @self.agent.tool_plain()
+            def write_notes_to_notebook(
+                text: str, category: str = "Observation", timestamp: str = None
+            ) -> str:
+                """
+                Write a note to the database with the given text, category, and timestamp.
+                Use this tool to record important memories about the user that are NOT task-related.
+
+                Suggested categories include (but are not limited to):
+                - Preference: for user preferences, likes, dislikes, etc.
+                - Schedule: for recurring events, meetings, routines, etc.
+                - Observation: for general observations about the user
+
+                You can use any category name that makes sense for organizing the note.
+
+                Do NOT use this for task-related information such as task completion status, due dates, or deadlines.
+                Task information belongs in the task database, not in notes.
+
+                Args:
+                    text (str): The content of the note to write.
+                    category (str): The category of the note (Preference, Schedule, Observation).
+                    timestamp (str, optional): Timestamp for when the note was created. Defaults to current time.
+                Returns:
+                    str: A confirmation message.
+                """
+                if not text.strip():
+                    return "Note content cannot be empty."
+
+                if not timestamp:
+                    timestamp = datetime.now().isoformat()
+
+                try:
+                    self.query_db(
+                        "INSERT INTO notes (content, category, timestamp) VALUES (?, ?, ?)",
+                        (text, category, timestamp),
+                    )
+                    return f"Note added to category: {category}"
+                except sqlite3.Error as e:
+                    return f"Error adding note: {e}"
+
         if testing_mode:
             self.write_notes_to_notebook = self._write_notes_to_notebook
             self.read_notes_from_notebook = self._read_notes_from_notebook
