@@ -6,7 +6,7 @@ import random
 import sqlite3
 import sys
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
 
 import openai
@@ -193,6 +193,79 @@ class MorpheusBot:
                 return "\n".join([str(row) for row in rows])
             except sqlite3.Error as e:
                 return f"Error executing query: {e}"
+
+        @self.agent.tool_plain()
+        def read_notes_from_notebook(
+            category: str = None, content_contains: str = None, days_ago: int = None
+        ) -> str:
+            """
+            Read notes from the database with optional filtering by category, content substring, and time period.
+
+            Args:
+                category (str, optional): Filter notes by category (e.g., "Preference", "Schedule", "Observation").
+                content_contains (str, optional): Filter notes by substring in content.
+                days_ago (int, optional): Filter notes from the last N days.
+            Returns:
+                str: Formatted notes matching the filter criteria.
+            """
+            try:
+                query = "SELECT content, category, timestamp FROM notes"
+                params = []
+                where_clauses = []
+
+                if category:
+                    where_clauses.append("category = ?")
+                    params.append(category)
+
+                if content_contains:
+                    where_clauses.append("content LIKE ?")
+                    params.append(f"%{content_contains}%")
+
+                if days_ago:
+                    date_n_days_ago = (
+                        datetime.now() - timedelta(days=days_ago)
+                    ).isoformat()
+                    where_clauses.append("timestamp >= ?")
+                    params.append(date_n_days_ago)
+
+                if where_clauses:
+                    query += " WHERE " + " AND ".join(where_clauses)
+
+                query += " ORDER BY timestamp DESC"
+
+                rows = self.query_db(query, tuple(params))
+
+                if not rows:
+                    return "No notes found matching the filter criteria."
+
+                result = "Notes"
+                if category:
+                    result += f" in category '{category}'"
+                if content_contains:
+                    result += f" containing '{content_contains}'"
+                if days_ago:
+                    result += f" from the last {days_ago} days"
+                result += ":\n\n"
+
+                categories = {}
+                for row in rows:
+                    content, category, timestamp = row
+                    if category not in categories:
+                        categories[category] = []
+                    date_str = datetime.fromisoformat(timestamp).strftime("%Y-%m-%d")
+                    categories[category].append((content, date_str))
+
+                for category, content_items in categories.items():
+                    result += f"### {category}\n"
+                    for content, date in content_items:
+                        result += f"- [{date}] {content}\n"
+                    result += "\n"
+
+                return result
+            except sqlite3.Error as e:
+                return f"Error reading notes: {e}"
+            except Exception as e:
+                return f"Error: {e}"
 
         @self.agent.tool_plain()
         def write_notes_to_notebook(
