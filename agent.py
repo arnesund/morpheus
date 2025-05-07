@@ -201,10 +201,13 @@ class MorpheusBot:
             """
             Write a note to the database with the given text, category, and timestamp.
             Use this tool to record important memories about the user that are NOT task-related.
-            Valid categories include:
+
+            Suggested categories include (but are not limited to):
             - Preference: for user preferences, likes, dislikes, etc.
             - Schedule: for recurring events, meetings, routines, etc.
             - Observation: for general observations about the user
+
+            You can use any category name that makes sense for organizing the note.
 
             Do NOT use this for task-related information such as task completion status, due dates, or deadlines.
             Task information belongs in the task database, not in notes.
@@ -221,13 +224,6 @@ class MorpheusBot:
 
             if not timestamp:
                 timestamp = datetime.now().isoformat()
-
-            # Validate category
-            valid_categories = ["Preference", "Schedule", "Observation"]
-            if category not in valid_categories:
-                category = (
-                    "Observation"  # Default to Observation for invalid categories
-                )
 
             try:
                 self.query_db(
