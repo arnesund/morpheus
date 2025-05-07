@@ -1,96 +1,111 @@
-"""Test script for the new notes storage system using SQLite."""
+"""Tests for the notes storage system using pytest."""
 
 import os
-import sqlite3
+import shutil
 from datetime import datetime
 
-TEST_DB = "test_notes.db"
+import pytest
 
-if os.path.exists(TEST_DB):
-    os.remove(TEST_DB)
+from agent import MorpheusBot
 
-conn = sqlite3.connect(TEST_DB)
-cursor = conn.cursor()
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS notes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        content TEXT NOT NULL,
-        category TEXT NOT NULL,
-        timestamp TEXT NOT NULL
+
+@pytest.fixture
+def test_bot():
+    """Fixture to create and clean up a test MorpheusBot instance."""
+    test_dir = "test_data"
+    os.makedirs(test_dir, exist_ok=True)
+    test_db = f"{test_dir}/test_morpheus.db"
+
+    if os.path.exists(test_db):
+        os.remove(test_db)
+
+    bot = MorpheusBot(db_filename=test_db, log_dir=test_dir, notes_dir=test_dir)
+
+    yield bot
+
+    shutil.rmtree(test_dir)
+
+
+def test_write_notes_basic(test_bot):
+    """Test adding a basic observation note."""
+    result = test_bot.write_notes_to_notebook(
+        "The user seems to be working on a project related to AI."
     )
-    """
-)
-conn.commit()
-
-print("Testing note addition...")
+    assert "Note added to category: Observation" in result
 
 
-def add_note(content, category="Observation", timestamp=None):
-    if not timestamp:
-        timestamp = datetime.now().isoformat()
-
-    try:
-        cursor.execute(
-            "INSERT INTO notes (content, category, timestamp) VALUES (?, ?, ?)",
-            (content, category, timestamp),
-        )
-        conn.commit()
-        return True, f"Note added to category: {category}"
-    except sqlite3.Error as e:
-        return False, f"Error adding note: {e}"
+def test_write_notes_with_category(test_bot):
+    """Test adding a note with a specific category."""
+    result = test_bot.write_notes_to_notebook(
+        "User prefers to be reminded about tasks in the morning.", "Preference"
+    )
+    assert "Note added to category: Preference" in result
 
 
-success, message = add_note("The user seems to be working on a project related to AI.")
-print(f"Test 1: {message}")
+def test_write_notes_with_custom_timestamp(test_bot):
+    """Test adding a note with a custom timestamp."""
+    custom_timestamp = datetime(2025, 1, 1).isoformat()
+    result = test_bot.write_notes_to_notebook(
+        "This note has a custom timestamp.", "Observation", custom_timestamp
+    )
+    assert "Note added to category: Observation" in result
 
-success, message = add_note(
-    "User prefers to be reminded about tasks in the morning.", "Preference"
-)
-print(f"Test 2: {message}")
 
-success, message = add_note("User completed the database migration task yesterday.")
-print(f"Test 3: {message}")
+def test_read_notes_all(test_bot):
+    """Test reading all notes."""
+    test_bot.write_notes_to_notebook("Test note 1")
+    test_bot.write_notes_to_notebook("Test note 2", "Preference")
 
-success, message = add_note("The user is working on an AI-related project.")
-print(f"Test 4: {message}")
+    result = test_bot.read_notes_from_notebook()
+    assert "Test note 1" in result
+    assert "Test note 2" in result
+    assert "Observation" in result
+    assert "Preference" in result
 
-success, message = add_note(
-    "User has a weekly meeting every Monday at 10am.", "Schedule"
-)
-print(f"Test 5: {message}")
 
-custom_timestamp = datetime(2025, 1, 1).isoformat()
-success, message = add_note(
-    "This note has a custom timestamp.", "Observation", custom_timestamp
-)
-print(f"Test 6: {message}")
+def test_read_notes_with_category_filter(test_bot):
+    """Test reading notes filtered by category."""
+    test_bot.write_notes_to_notebook("Test observation", "Observation")
+    test_bot.write_notes_to_notebook("Test preference", "Preference")
+    test_bot.write_notes_to_notebook("Test schedule", "Schedule")
 
-print("\nNotes in database:")
-cursor.execute("SELECT content, category, timestamp FROM notes ORDER BY timestamp DESC")
-notes = cursor.fetchall()
+    result = test_bot.read_notes_from_notebook(category="Preference")
+    assert "Test preference" in result
+    assert "Test observation" not in result
+    assert "Test schedule" not in result
 
-for note in notes:
-    content, category, timestamp = note
-    print(f"Category: {category}")
-    print(f"Content: {content}")
-    print(f"Timestamp: {timestamp}")
-    print("-" * 40)
 
-print("\nNotes by category:")
-categories = {}
-for note in notes:
-    content, category, timestamp = note
-    if category not in categories:
-        categories[category] = []
-    categories[category].append(content)
+def test_read_notes_with_content_filter(test_bot):
+    """Test reading notes filtered by content."""
+    test_bot.write_notes_to_notebook("User likes coffee in the morning")
+    test_bot.write_notes_to_notebook("User has a meeting every Monday", "Schedule")
 
-for category, contents in categories.items():
-    print(f"### {category}")
-    for content in contents:
-        print(f"- {content}")
-    print()
+    result = test_bot.read_notes_from_notebook(content_contains="meeting")
+    assert "meeting" in result
+    assert "coffee" not in result
 
-conn.close()
-os.remove(TEST_DB)
-print("Done!")
+
+def test_read_notes_with_time_filter(test_bot):
+    """Test reading notes filtered by time period."""
+    past_timestamp = datetime(2020, 1, 1).isoformat()
+    test_bot.write_notes_to_notebook("Old note", "Observation", past_timestamp)
+
+    test_bot.write_notes_to_notebook("Recent note")
+
+    result = test_bot.read_notes_from_notebook(days_ago=30)
+    assert "Recent note" in result
+    assert "Old note" not in result
+
+
+def test_read_notes_with_multiple_filters(test_bot):
+    """Test reading notes with multiple filters applied."""
+    test_bot.write_notes_to_notebook("User likes coffee", "Preference")
+    test_bot.write_notes_to_notebook("User prefers morning meetings", "Preference")
+    test_bot.write_notes_to_notebook("Morning routine includes exercise", "Schedule")
+
+    result = test_bot.read_notes_from_notebook(
+        category="Preference", content_contains="morning"
+    )
+    assert "morning meetings" in result
+    assert "coffee" not in result
+    assert "Morning routine" not in result
