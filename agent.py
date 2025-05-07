@@ -34,14 +34,11 @@ class MorpheusBot:
         self.notebook_filename = notebook_filename
         self.testing_mode = testing_mode
 
-        # Ensure the required directories exist
         for d in [self.log_dir, self.notes_dir]:
             os.makedirs(d, exist_ok=True)
 
-        # Set up the audit logger
         self.audit_logger = logging.getLogger("auditlog")
         self.audit_logger.setLevel(logging.INFO)
-        # Avoid adding duplicate handlers if the logger already has them.
         if not self.audit_logger.handlers:
             audit_handler = TimedRotatingFileHandler(
                 f"{self.log_dir}/auditlog.log", when="midnight", interval=1
@@ -54,7 +51,6 @@ class MorpheusBot:
 
         if not testing_mode:
             load_dotenv()
-            # Validate that required environment variables are present.
             required_vars = ["OPENAI_API_KEY", "DENO_PATH"]
             missing_vars = [var for var in required_vars if not os.getenv(var)]
             if missing_vars:
@@ -62,15 +58,11 @@ class MorpheusBot:
                     f"Missing required environment variables: {', '.join(missing_vars)}"
                 )
 
-        # Initialize an empty message history.
         self.history = []
-        # Initialize the timestamp for the history (unix timestamp).
         self.history_timestamp = None
-        # Initialize (or create) the SQLite database for tasks.
         self.init_db()
 
         if not testing_mode:
-            # Run Python code sandboxed using Pyodide as a MCP server
             run_python_server = MCPServerStdio(
                 os.getenv("DENO_PATH"),
                 args=[
@@ -84,7 +76,6 @@ class MorpheusBot:
                 ],
             )
 
-            # Use Claude if Anthropic API key is set
             claude37sonnet = AnthropicModel("claude-3-7-sonnet-latest")
             claude35sonnet = AnthropicModel("claude-3-5-sonnet-latest")
             claude35haiku = AnthropicModel("claude-3-5-haiku-latest")
@@ -96,7 +87,6 @@ class MorpheusBot:
                 claude37sonnet, claude35haiku, o3mini, gpt4o
             )
 
-            # Initialize the agent with the given system prompt.
             self.agent = Agent(
                 model=preferred_model,
                 system_prompt=system_prompt,
@@ -484,11 +474,9 @@ class MorpheusBot:
         """
         Log each message to disk in JSON format.
         """
-        # Use the entire list if this is the first interaction in the thread
         messages = result.new_messages_json() if history else result.all_messages_json()
         messages_json = to_jsonable_python(messages)
 
-        # Use a date-stamped filename for the message history
         filepath = f"{self.log_dir}/messages.{datetime.now().strftime('%Y-%m-%d')}.json"
         with open(filepath, "a") as f:
             f.write(messages_json)
@@ -525,56 +513,38 @@ class MorpheusBot:
         Processes a message by passing it to the agent and transforms the resulting new messages into
         a Slack Bolt block formatted dictionary. The method collects each new part from the agent's output.
 
-        Args:
-            text (str): The input text message.
+        Arguments:
+            text: The message text to process.
+
         Returns:
-            dict: A dictionary following the Slack Bolt block format.
+            A tuple of (blocks, history) where blocks is a list of Slack Bolt blocks and history is the updated history.
         """
-        self.audit_logger.info(f"Processing message: {text.strip()}")
-        async with self.agent.run_mcp_servers():
-            result = await self.agent.run(text, message_history=self.get_history())
-        self.log_messages(result, self.history)
-        self.audit_logger.info(f"Token usage: {result.usage()}")
+        history = self.get_history()
+        result = await capture_run_messages(
+            self.agent.run_async(text=text, history=history)
+        )
+        self.log_messages(result, history)
         self.set_history(result.all_messages())
 
-        slack_message = {"blocks": [], "text": result.data}
-        for msg in result.new_messages():
-            block = {
-                "type": "rich_text",
-                "elements": [{"type": "rich_text_section", "elements": []}],
-            }
-            elements = block["elements"][0]["elements"]
-
-            for part in msg.parts:
-                if isinstance(part, TextPart) and part.has_content():
-                    elements.append({"type": "text", "text": part.content + "\n"})
+        blocks = []
+        for message in result.new_messages():
+            for part in message.parts:
+                if isinstance(part, TextPart):
+                    blocks.append(
+                        {
+                            "type": "section",
+                            "text": {"type": "mrkdwn", "text": part.text},
+                        }
+                    )
                 elif isinstance(part, ToolCallPart):
-                    # Choose emoji based on tool name
-                    emoji_name = "gear"
-
-                    if part.tool_name == "query_task_database" and part.has_content():
-                        # For SQL queries, customize emoji based on query type
-                        query_text = str(part.args).upper().strip() if part.args else ""
-                        if query_text.startswith("SELECT"):
-                            emoji_name = "mag"  # Magnifying glass for SELECT
-                        elif query_text.startswith("INSERT"):
-                            emoji_name = "heavy_plus_sign"  # Plus for INSERT
-                        elif query_text.startswith("UPDATE"):
-                            emoji_name = "pencil"  # Pencil for UPDATE
-                        elif query_text.startswith("DELETE"):
-                            emoji_name = "wastebasket"  # Trash for DELETE
-                        else:
-                            emoji_name = (
-                                "card_index_dividers"  # Default for other DB operations
-                            )
-                    elif part.tool_name == "write_notes_to_notebook":
-                        emoji_name = "memo"  # Memo for notebook operations
-
-                    elements.append({"type": "emoji", "name": emoji_name})
-                    elements.append(
-                        {"type": "text", "text": f" Called {part.tool_name}\n"}
+                    blocks.append(
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": f"*Tool Call:* `{part.name}`\n```\n{part.input}\n```\n*Result:*\n```\n{part.output}\n```",
+                            },
+                        }
                     )
 
-            slack_message["blocks"].append(block)
-
-        return slack_message
+        return blocks, result.all_messages()
