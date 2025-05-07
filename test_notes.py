@@ -1,58 +1,96 @@
-"""Test script for the new notes storage system."""
+"""Test script for the new notes storage system using SQLite."""
 
 import os
-import shutil
+import sqlite3
+from datetime import datetime
 
-from notes_utils import Note, add_note, load_notes
+TEST_DB = "test_notes.db"
 
-TEST_DIR = "test_notes"
-os.makedirs(TEST_DIR, exist_ok=True)
-TEST_NOTEBOOK = f"{TEST_DIR}/test_notebook.md"
+if os.path.exists(TEST_DB):
+    os.remove(TEST_DB)
 
-if os.path.exists(TEST_NOTEBOOK):
-    os.remove(TEST_NOTEBOOK)
+conn = sqlite3.connect(TEST_DB)
+cursor = conn.cursor()
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL,
+        category TEXT NOT NULL,
+        timestamp TEXT NOT NULL
+    )
+    """
+)
+conn.commit()
 
 print("Testing note addition...")
 
-success, message = add_note(
-    TEST_NOTEBOOK, "The user seems to be working on a project related to AI."
-)
+
+def add_note(content, category="Observation", timestamp=None):
+    if not timestamp:
+        timestamp = datetime.now().isoformat()
+
+    try:
+        cursor.execute(
+            "INSERT INTO notes (content, category, timestamp) VALUES (?, ?, ?)",
+            (content, category, timestamp),
+        )
+        conn.commit()
+        return True, f"Note added to category: {category}"
+    except sqlite3.Error as e:
+        return False, f"Error adding note: {e}"
+
+
+success, message = add_note("The user seems to be working on a project related to AI.")
 print(f"Test 1: {message}")
 
 success, message = add_note(
-    TEST_NOTEBOOK,
-    "[PREFERENCE] User prefers to be reminded about tasks in the morning.",
+    "User prefers to be reminded about tasks in the morning.", "Preference"
 )
 print(f"Test 2: {message}")
 
-success, message = add_note(
-    TEST_NOTEBOOK, "User completed the database migration task yesterday."
-)
+success, message = add_note("User completed the database migration task yesterday.")
 print(f"Test 3: {message}")
 
-success, message = add_note(
-    TEST_NOTEBOOK, "The user is working on an AI-related project."
-)
+success, message = add_note("The user is working on an AI-related project.")
 print(f"Test 4: {message}")
 
 success, message = add_note(
-    TEST_NOTEBOOK, "[SCHEDULE] User has a weekly meeting every Monday at 10am."
+    "User has a weekly meeting every Monday at 10am.", "Schedule"
 )
 print(f"Test 5: {message}")
 
+custom_timestamp = datetime(2025, 1, 1).isoformat()
 success, message = add_note(
-    TEST_NOTEBOOK, "[SCHEDULE] User has a weekly meeting every Monday at 10am."
+    "This note has a custom timestamp.", "Observation", custom_timestamp
 )
 print(f"Test 6: {message}")
 
-notes = load_notes(TEST_NOTEBOOK)
-print("\nNotes in file:")
+print("\nNotes in database:")
+cursor.execute("SELECT content, category, timestamp FROM notes ORDER BY timestamp DESC")
+notes = cursor.fetchall()
+
 for note in notes:
-    print(f"Category: {note.category}")
-    print(f"Content: {note.content}")
-    print(f"Timestamp: {note.timestamp}")
+    content, category, timestamp = note
+    print(f"Category: {category}")
+    print(f"Content: {content}")
+    print(f"Timestamp: {timestamp}")
     print("-" * 40)
 
-print("\nCleaning up...")
-shutil.rmtree(TEST_DIR)
+print("\nNotes by category:")
+categories = {}
+for note in notes:
+    content, category, timestamp = note
+    if category not in categories:
+        categories[category] = []
+    categories[category].append(content)
+
+for category, contents in categories.items():
+    print(f"### {category}")
+    for content in contents:
+        print(f"- {content}")
+    print()
+
+conn.close()
+os.remove(TEST_DB)
 print("Done!")

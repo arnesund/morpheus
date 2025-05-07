@@ -105,34 +105,34 @@ class MorpheusBot:
         @self.agent.system_prompt
         def read_notes() -> str:
             """
-            Read in the contents of the notebook file.
+            Read notes from the database and format them by category.
             """
-            from notes_utils import load_notes
+            try:
+                rows = self.query_db(
+                    "SELECT content, category, timestamp FROM notes ORDER BY timestamp DESC"
+                )
 
-            filepath = f"{self.notes_dir}/{self.notebook_filename}"
-            if not os.path.exists(filepath):
-                return ""
+                if not rows:
+                    return ""
 
-            notes = load_notes(filepath)
+                result = "Notes you've made so far, organized by category:\n\n"
 
-            if not notes:
-                return ""
+                categories = {}
+                for row in rows:
+                    content, category, timestamp = row
+                    if category not in categories:
+                        categories[category] = []
+                    categories[category].append(content)
 
-            result = "Notes you've made so far, organized by category:\n\n"
+                for category, contents in categories.items():
+                    result += f"### {category}\n"
+                    for content in contents:
+                        result += f"- {content}\n"
+                    result += "\n"
 
-            categories = {}
-            for note in notes:
-                if note.category not in categories:
-                    categories[note.category] = []
-                categories[note.category].append(note.content)
-
-            for category, contents in categories.items():
-                result += f"### {category}\n"
-                for content in contents:
-                    result += f"- {content}\n"
-                result += "\n"
-
-            return result
+                return result
+            except sqlite3.Error as e:
+                return f"Error reading notes: {e}"
 
         @self.agent.system_prompt
         def fetch_pending_tasks() -> str:
@@ -195,38 +195,57 @@ class MorpheusBot:
                 return f"Error executing query: {e}"
 
         @self.agent.tool_plain()
-        def write_notes_to_notebook(text: str) -> str:
+        def write_notes_to_notebook(
+            text: str, category: str = "Observation", timestamp: str = None
+        ) -> str:
             """
-            Write the given text to your notebook as a categorized note. Use this tool to record important memories
-            about the user that are NOT task-related. Valid categories include:
-            - [PREFERENCE] for user preferences, likes, dislikes, etc.
-            - [SCHEDULE] for recurring events, meetings, routines, etc.
-            - [OBSERVATION] for general observations about the user
-
-            Format your note with a category tag at the beginning like [CATEGORY] followed by your note.
-            For example: [PREFERENCE] User prefers to be reminded about tasks in the morning.
+            Write a note to the database with the given text, category, and timestamp.
+            Use this tool to record important memories about the user that are NOT task-related.
+            Valid categories include:
+            - Preference: for user preferences, likes, dislikes, etc.
+            - Schedule: for recurring events, meetings, routines, etc.
+            - Observation: for general observations about the user
 
             Do NOT use this for task-related information such as task completion status, due dates, or deadlines.
             Task information belongs in the task database, not in notes.
 
             Args:
-                text (str): The text to write to the notebook.
+                text (str): The content of the note to write.
+                category (str): The category of the note (Preference, Schedule, Observation).
+                timestamp (str, optional): Timestamp for when the note was created. Defaults to current time.
             Returns:
                 str: A confirmation message.
             """
-            from notes_utils import add_note
+            if not text.strip():
+                return "Note content cannot be empty."
 
-            filepath = f"{self.notes_dir}/{self.notebook_filename}"
-            success, message = add_note(filepath, text)
-            return message
+            if not timestamp:
+                timestamp = datetime.now().isoformat()
+
+            # Validate category
+            valid_categories = ["Preference", "Schedule", "Observation"]
+            if category not in valid_categories:
+                category = (
+                    "Observation"  # Default to Observation for invalid categories
+                )
+
+            try:
+                self.query_db(
+                    "INSERT INTO notes (content, category, timestamp) VALUES (?, ?, ?)",
+                    (text, category, timestamp),
+                )
+                return f"Note added to category: {category}"
+            except sqlite3.Error as e:
+                return f"Error adding note: {e}"
 
     def init_db(self):
         """
-        Initialize the SQLite database and create the tasks table if it doesn't exist.
+        Initialize the SQLite database and create the tasks and notes tables if they don't exist.
         Also, check if the 'due', 'tags', and 'recurrence' columns exist and ALTER TABLE to add them if missing.
         """
         conn = sqlite3.connect(self.DB_FILENAME)
         cursor = conn.cursor()
+
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS tasks (
@@ -241,7 +260,20 @@ class MorpheusBot:
             )
             """
         )
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL,
+                category TEXT NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+            """
+        )
+
         conn.commit()
+
         cursor.execute("PRAGMA table_info(tasks)")
         columns = [row[1] for row in cursor.fetchall()]
 
