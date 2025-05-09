@@ -57,7 +57,9 @@ uv run chainlit run chainlit_app.py --host 0.0.0.0
 The project uses pytest for testing. To run the tests:
 
 ```
-# Install test dependencies
+# Create virtual environment and install test dependencies
+uv venv
+. .venv/bin/activate
 uv pip install -e .
 uv pip install pytest pytest-cov pytest-asyncio pytest-mock
 

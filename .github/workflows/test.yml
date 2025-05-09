@@ -27,6 +27,8 @@ jobs:
         
     - name: Install dependencies
       run: |
+        uv venv
+        . .venv/bin/activate
         uv pip install -e .
         uv pip install pytest pytest-cov pytest-asyncio pytest-mock
         
@@ -38,6 +40,7 @@ jobs:
         
     - name: Run tests
       run: |
+        . .venv/bin/activate
         pytest --cov=. --cov-report=xml
         
     - name: Upload coverage report
