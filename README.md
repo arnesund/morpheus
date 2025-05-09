@@ -51,3 +51,26 @@ The web UI is built using Chainlit. Start it up like this:
 ```
 uv run chainlit run chainlit_app.py --host 0.0.0.0
 ```
+
+## Running tests
+
+The project uses pytest for testing. To run the tests:
+
+```
+# Install test dependencies
+uv pip install -e .
+uv pip install pytest pytest-cov pytest-asyncio pytest-mock
+
+# Run all tests
+pytest
+
+# Run tests with coverage report
+pytest --cov=. --cov-report=term
+
+# Run specific test categories
+pytest tests/unit/
+pytest tests/integration/
+
+# Run tests with verbose output
+pytest -v
+```
