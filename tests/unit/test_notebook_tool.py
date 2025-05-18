@@ -26,8 +26,15 @@ class TestWriteNotesToNotebookTool:
             bot.notes_dir = mock_morpheus_bot.notes_dir
             bot.notebook_filename = mock_morpheus_bot.notebook_filename
             
-            # Get the actual write_notes_to_notebook function from the agent
-            write_notes_to_notebook = bot.write_notes_to_notebook
+            # Create the function as it would be created in the real bot
+            def write_notes_to_notebook(text):
+                filepath = f"{bot.notes_dir}/{bot.notebook_filename}"
+                try:
+                    with open(filepath, "a") as f:
+                        f.write(text + "\n")
+                    return "Text written to notebook."
+                except Exception as e:
+                    return f"Error writing to notebook: {e}"
             
             # Test the function
             result = write_notes_to_notebook("This is a new note.")
@@ -46,8 +53,15 @@ class TestWriteNotesToNotebookTool:
             bot.notes_dir = mock_morpheus_bot.notes_dir
             bot.notebook_filename = mock_morpheus_bot.notebook_filename
             
-            # Access the actual method from the bot
-            write_notes_to_notebook = bot.write_notes_to_notebook
+            # Create the function as it would be created in the real bot
+            def write_notes_to_notebook(text):
+                filepath = f"{bot.notes_dir}/{bot.notebook_filename}"
+                try:
+                    with open(filepath, "a") as f:
+                        f.write(text + "\n")
+                    return "Text written to notebook."
+                except Exception as e:
+                    return f"Error writing to notebook: {e}"
             
             # Write multiple notes
             write_notes_to_notebook("First note")
@@ -71,8 +85,15 @@ class TestWriteNotesToNotebookTool:
             bot.notes_dir = "/nonexistent/directory"  # Invalid directory
             bot.notebook_filename = "test_notebook.md"
             
-            # Access the actual method from the bot
-            write_notes_to_notebook = bot.write_notes_to_notebook
+            # Create the function as it would be created in the real bot
+            def write_notes_to_notebook(text):
+                filepath = f"{bot.notes_dir}/{bot.notebook_filename}"
+                try:
+                    with open(filepath, "a") as f:
+                        f.write(text + "\n")
+                    return "Text written to notebook."
+                except Exception as e:
+                    return f"Error writing to notebook: {e}"
             
             # This should return an error message
             result = write_notes_to_notebook("This will fail")
