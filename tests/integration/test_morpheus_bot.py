@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from tests.fixtures.test_data import SAMPLE_TASKS, SAMPLE_SYSTEM_PROMPT
 
-from pydantic_ai.messages import Message, TextPart, ToolCallPart
+from pydantic_ai.messages import ModelMessage, TextPart, ToolCallPart
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def temp_db_path(tmp_path):
 def mock_run_result():
     """Create a mock result from agent.run()."""
     # Create a mock Message object
-    mock_message = MagicMock(spec=Message)
+    mock_message = MagicMock(spec=ModelMessage)
     
     # Create message parts
     text_part = MagicMock(spec=TextPart)
