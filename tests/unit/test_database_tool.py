@@ -61,7 +61,12 @@ class TestQueryTaskDatabaseTool:
             bot.log_query = mock_morpheus_bot.log_query
             
             # Create the function as it would be created in the real bot
-            query_task_database = lambda query, params=(): bot.query_db(query, params)
+            def query_task_database(query, params=()):
+                try:
+                    rows = bot.query_db(query, params)
+                    return "\n".join([str(row) for row in rows])
+                except sqlite3.Error as e:
+                    return f"Error executing query: {e}"
             
             # Test the function
             result = query_task_database("SELECT * FROM tasks")
@@ -81,7 +86,12 @@ class TestQueryTaskDatabaseTool:
             bot.query_db = mock_morpheus_bot.query_db
             bot.log_query = mock_morpheus_bot.log_query
             
-            query_task_database = lambda query, params=(): bot.query_db(query, params)
+            def query_task_database(query, params=()):
+                try:
+                    rows = bot.query_db(query, params)
+                    return "\n".join([str(row) for row in rows])
+                except sqlite3.Error as e:
+                    return f"Error executing query: {e}"
             
             result = query_task_database(
                 "SELECT * FROM tasks WHERE time_complete IS NULL"
@@ -102,7 +112,12 @@ class TestQueryTaskDatabaseTool:
             bot.query_db = mock_morpheus_bot.query_db
             bot.log_query = mock_morpheus_bot.log_query
             
-            query_task_database = lambda query, params=(): bot.query_db(query, params)
+            def query_task_database(query, params=()):
+                try:
+                    rows = bot.query_db(query, params)
+                    return "\n".join([str(row) for row in rows])
+                except sqlite3.Error as e:
+                    return f"Error executing query: {e}"
             
             result = query_task_database(
                 "SELECT * FROM tasks WHERE tags LIKE ?", 
@@ -122,7 +137,12 @@ class TestQueryTaskDatabaseTool:
             bot.query_db = MagicMock(side_effect=sqlite3.Error("Invalid SQL"))
             bot.log_query = mock_morpheus_bot.log_query
             
-            query_task_database = lambda query, params=(): "\n".join([str(row) for row in bot.query_db(query, params)])
+            def query_task_database(query, params=()):
+                try:
+                    rows = bot.query_db(query, params)
+                    return "\n".join([str(row) for row in rows])
+                except sqlite3.Error as e:
+                    return f"Error executing query: {e}"
             
             # This should return an error message
             result = query_task_database("INVALID SQL")
