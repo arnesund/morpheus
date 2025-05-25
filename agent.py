@@ -184,7 +184,7 @@ class MorpheusBot:
         @self.agent.tool_plain()
         def write_notes_to_notebook(text: str) -> str:
             """
-            Write the given text to your notebook. Use this tool when you want to take a note in markdown format about something you learned about the user. Do not write tasks here. Only write thoughts and observations. It is not necessary to mention that the user completed a task. Write concisely.
+            Note down a generic observation about something you learned about the user. Only write thoughts and observations. It is not necessary to mention that the user completed a task. Task details do not belong here, only note down observations that appear to be true both today and in general. Write concisely.
 
             Args:
                 text (str): The text to write to the notebook.
