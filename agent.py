@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.messages import TextPart, ToolCallPart
@@ -86,12 +87,12 @@ class MorpheusBot:
         o3mini = OpenAIModel("o3-mini")
         gpt4o  = OpenAIModel("gpt-4o")
         gpt41  = OpenAIModel("gpt-4.1")
+        gemini25flash = GeminiModel("gemini-2.5-flash-preview-05-20", provider="google-gla")
+        gemini20flash = GeminiModel("gemini-2.0-flash", provider="google-gla")
 
         preferred_model = FallbackModel(
-            claude37sonnet,
-            claude35haiku,
-            o3mini,
-            gpt4o
+            gemini25flash,
+            gemini20flash,
         )
 
         # Initialize the agent with the given system prompt.
