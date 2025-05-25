@@ -105,7 +105,7 @@ class MorpheusBot:
         # Add dynamic system prompt snippets as well.
         @self.agent.system_prompt
         def add_the_date() -> str:
-            return f'The current date is {date.today()} and it is a {date.today().strftime("%A")}.'
+            return f'The current date is {date.today()} and it is a {date.today().strftime("%A")}. The current time is {datetime.now().strftime("%H:%M")} (24-hour clock).'
 
         @self.agent.system_prompt
         def read_notes() -> str:
