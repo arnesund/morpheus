@@ -91,8 +91,8 @@ class MorpheusBot:
         gemini20flash = GeminiModel("gemini-2.0-flash", provider="google-gla")
 
         preferred_model = FallbackModel(
-            gemini25flash,
-            gemini20flash,
+            claude35sonnet,
+            claude35haiku,
         )
 
         # Initialize the agent with the given system prompt.
