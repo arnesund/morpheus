@@ -329,53 +329,60 @@ class MorpheusBot:
         
     async def _process_coding_query(self, query: str) -> None:
         """
-        Process a coding query and stream updates back to the user via Slack.
+        Process a coding query, wait for completion, and post the results to Slack.
         
         Args:
-            query: The coding query to process
+            query: The coding query or task to process
         """
         try:
-            # Create a temporary storage for Slack blocks to be sent as updates
-            blocks = []
+            self.audit_logger.info("Starting coding agent processing, waiting for completion...")
             
-            # Start the streaming process with the coding agent
-            # First start the MCP servers and get the stream
+            # Run the query and collect all results
+            full_response = []
+            
+            # Start the processing with the coding agent
             stream_result = await self.coding_agent.process_query(query)
             async for message in stream_result.stream():
-                    # Extract update message
-                    update = self.coding_agent.extract_update_message(message)
-                    if update.strip():
-                        # Build a Slack block for this update
-                        block = {
-                            "type": "rich_text",
-                            "elements": [{
-                                "type": "rich_text_section", 
-                                "elements": [
-                                    {"type": "emoji", "name": "robot_face"},
-                                    {"type": "text", "text": f" Coding update: {update}"}
-                                ]
-                            }]
-                        }
-                        blocks.append(block)
-                        
-                        # Every few updates or when the message is important, send to Slack
-                        if len(blocks) >= 3 or "completed" in update.lower() or "finished" in update.lower():
-                            # Send the update to Slack
-                            slack_message = {"blocks": blocks, "text": "Coding agent update"}
-                            
-                            # Log this message for debugging/information purposes.
-                            self.audit_logger.info(f"Sending coding agent update to Slack")
-                            
-                            # Process this via our regular Slack update mechanism
-                            await self._send_slack_update(slack_message)
-                            
-                            # Clear blocks for the next batch
-                            blocks = []
+                # Extract message content
+                update = self.coding_agent.extract_update_message(message)
+                if update.strip():
+                    full_response.append(update)
             
-            # Send any remaining blocks as a final update
-            if blocks:
-                slack_message = {"blocks": blocks, "text": "Coding agent final update"}
-                await self._send_slack_update(slack_message)
+            # If no response was collected, provide a fallback
+            if not full_response:
+                full_response = ["The coding agent completed processing but didn't provide any specific output."]
+                
+            # Format the full response for Slack
+            blocks = []
+            
+            # Add a header block
+            blocks.append({
+                "type": "rich_text",
+                "elements": [{
+                    "type": "rich_text_section", 
+                    "elements": [
+                        {"type": "emoji", "name": "robot_face"},
+                        {"type": "text", "text": " Coding Agent Results:"}
+                    ]
+                }]
+            })
+            
+            # Add the response content
+            response_text = "\n\n".join(full_response)
+            blocks.append({
+                "type": "rich_text",
+                "elements": [{
+                    "type": "rich_text_section", 
+                    "elements": [
+                        {"type": "text", "text": response_text}
+                    ]
+                }]
+            })
+            
+            # Send the complete response to Slack
+            slack_message = {"blocks": blocks, "text": "Coding agent results"}
+            self.audit_logger.info("Coding agent processing complete, sending results")
+            await self._send_slack_update(slack_message)
                 
         except Exception as e:
             self.audit_logger.error(f"Error in coding agent processing: {e}")
