@@ -343,9 +343,8 @@ class MorpheusBot:
             # Get the streaming response from the coding agent
             stream_result = await self.coding_agent.process_query(query)
             
-            # Now process the streaming result
-                # Now stream the results
-                async for message in stream_result.stream():
+            # Now process the streaming result directly
+            async for message in stream_result.stream():
                     # Extract update message
                     update = self.coding_agent.extract_update_message(message)
                     if update.strip():
