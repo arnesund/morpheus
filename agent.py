@@ -340,11 +340,10 @@ class MorpheusBot:
             # Create a temporary storage for Slack blocks to be sent as updates
             blocks = []
             
-            # Get the context manager from coding agent but don't await it - use it with async with
-            stream_context = await self.coding_agent.process_query(query)
+            # Get the streaming response from the coding agent
+            stream_result = await self.coding_agent.process_query(query)
             
-            # Now properly use the context manager with async with
-            async with stream_context as stream_result:
+            # Now process the streaming result
                 # Now stream the results
                 async for message in stream_result.stream():
                     # Extract update message

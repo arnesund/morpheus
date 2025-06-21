@@ -43,14 +43,8 @@ class CodingAgent:
             "AWS_REGION": os.getenv("AWS_REGION")
         }
         
-        # Create Claude MCP server
-        self.claude_mcp_server = MCPServerStdio(
-            "claude",
-            args=["mcp", "serve"],
-            env=claude_env
-        )
-        
-        # Use Claude models
+        # Use Claude models directly without Claude MCP server
+        # This avoids the MCP server not running error
         self.claude_model = AnthropicModel("claude-3-5-sonnet-latest")
         
         # Default system prompt for coding tasks if none is provided
@@ -69,11 +63,14 @@ class CodingAgent:
         Always follow best practices for the programming language you're working with.
         """
         
-        # Initialize the agent with the given system prompt
+        # Log Claude model usage
+        self.logger.info(f"Initializing coding agent with Claude model: claude-3-5-sonnet-latest")
+        
+        # Initialize the agent with the given system prompt, but no custom MCP servers
+        # Instead, rely on the built-in capabilities of the AnthropicModel
         self.agent = Agent(
             model=self.claude_model,
             system_prompt=system_prompt or default_system_prompt,
-            mcp_servers=[self.claude_mcp_server],
         )
     
     async def process_query(self, text: str, history=None):
@@ -85,14 +82,17 @@ class CodingAgent:
             history: Optional message history for context
             
         Returns:
-            A context manager for streaming responses
+            A streaming response object
         """
         self.logger.info(f"Processing coding query: {text[:100]}...")
-        # First initialize MCP servers
-        async with self.agent.run_mcp_servers():
-            # Return the run_stream context manager directly without awaiting it
-            # This ensures it can be used with 'async with' by the caller
-            return self.agent.run_stream(text, message_history=history or [])
+        
+        try:
+            # Run standard agent without the Claude MCP server
+            # This avoids the MCP server not running error
+            return await self.agent.run_stream(text, message_history=history or [])
+        except Exception as e:
+            self.logger.error(f"Error processing coding query: {str(e)}")
+            raise
     
     def extract_update_message(self, message: Any) -> str:
         """
