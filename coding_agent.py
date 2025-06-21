@@ -76,7 +76,7 @@ class CodingAgent:
             mcp_servers=[self.claude_mcp_server],
         )
     
-    def process_query(self, text: str, history=None):
+    async def process_query(self, text: str, history=None):
         """
         Process a coding query and return a streaming result that can be used for updates.
         
