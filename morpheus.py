@@ -152,6 +152,7 @@ if __name__ == "__main__":
         )
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received")
+        # Don't log here - already logged in main()
+        pass
     except Exception as e:
         logger.exception(f"Unhandled exception")

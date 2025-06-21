@@ -24,9 +24,10 @@ class CodingAgent:
         self.log_dir = "logs"
         os.makedirs(self.log_dir, exist_ok=True)
         
-        # Set up logger
+        # Set up logger - use a dedicated file handler but don't propagate to root logger
         self.logger = logging.getLogger("coding_agent")
         self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False  # Prevent messages from propagating to root logger
         if not self.logger.handlers:
             handler = logging.FileHandler(f"{self.log_dir}/coding_agent.log")
             handler.setFormatter(
