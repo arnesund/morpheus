@@ -7,6 +7,7 @@ import sqlite3
 import time
 from datetime import date, datetime
 from logging.handlers import TimedRotatingFileHandler
+from typing import Optional, List, Dict, Any
 
 import openai
 from dotenv import load_dotenv
@@ -18,6 +19,8 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.messages import TextPart, ToolCallPart
 from pydantic_core import to_jsonable_python
+
+from coding_agent import CodingAgent
 
 
 class MorpheusBot:
@@ -80,19 +83,8 @@ class MorpheusBot:
             ],
         )
         
-        # Claude MCP server using claude mcp serve command
-        claude_env = {
-            "CLAUDE_CODE_USE_BEDROCK": "1",
-            "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
-            "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
-            "AWS_REGION": os.getenv("AWS_REGION")
-        }
-        
-        claude_mcp_server = MCPServerStdio(
-            "claude",
-            args=["mcp", "serve"],
-            env=claude_env
-        )
+        # Initialize the coding agent for coding-related tasks
+        self.coding_agent = CodingAgent()
 
         # Use Claude if Anthropic API key is set
         claude37sonnet = AnthropicModel("claude-3-7-sonnet-latest")
@@ -113,7 +105,7 @@ class MorpheusBot:
         self.agent = Agent(
             model=preferred_model,
             system_prompt=system_prompt,
-            mcp_servers=[run_python_server, claude_mcp_server],
+            mcp_servers=[run_python_server],
         )
 
         # Add dynamic system prompt snippets as well.
@@ -212,6 +204,27 @@ class MorpheusBot:
                 return "Text written to notebook."
             except Exception as e:
                 return f"Error writing to notebook: {e}"
+            
+        @self.agent.tool_plain()
+        async def call_coding_agent(query: str) -> str:
+            """
+            Delegate coding-related tasks to the specialized coding agent powered by Claude.
+            This agent has specialized capabilities for software development tasks.
+            Use this tool when the user needs help with coding, development, or technical software questions.
+            
+            The coding agent will work on the task and provide updates on its progress.
+            
+            Args:
+                query (str): The coding-related query or task to delegate to the coding agent.
+            Returns:
+                str: Confirmation that the coding agent has started working on the task.
+            """
+            self.audit_logger.info(f"Delegating coding task to coding agent: {query}")
+            
+            # Start a background task to process the coding query and stream updates
+            asyncio.create_task(self._process_coding_query(query))
+            
+            return "Coding agent is now working on your request. You will receive updates as progress is made."
 
     def init_db(self):
         """
@@ -313,6 +326,106 @@ class MorpheusBot:
             self.history = []
             self.history_timestamp = None
         return self.history
+        
+    async def _process_coding_query(self, query: str) -> None:
+        """
+        Process a coding query and stream updates back to the user via Slack.
+        
+        Args:
+            query: The coding query to process
+        """
+        try:
+            # Create a temporary storage for Slack blocks to be sent as updates
+            blocks = []
+            
+            # Start the streaming process with the coding agent
+            async with await self.coding_agent.process_query(query) as result:
+                async for message in result.stream():
+                    # Extract update message
+                    update = self.coding_agent.extract_update_message(message)
+                    if update.strip():
+                        # Build a Slack block for this update
+                        block = {
+                            "type": "rich_text",
+                            "elements": [{
+                                "type": "rich_text_section", 
+                                "elements": [
+                                    {"type": "emoji", "name": "robot_face"},
+                                    {"type": "text", "text": f" Coding update: {update}"}
+                                ]
+                            }]
+                        }
+                        blocks.append(block)
+                        
+                        # Every few updates or when the message is important, send to Slack
+                        if len(blocks) >= 3 or "completed" in update.lower() or "finished" in update.lower():
+                            # Send the update to Slack
+                            slack_message = {"blocks": blocks, "text": "Coding agent update"}
+                            
+                            # Log this message for debugging/information purposes.
+                            self.audit_logger.info(f"Sending coding agent update to Slack")
+                            
+                            # Process this via our regular Slack update mechanism
+                            await self._send_slack_update(slack_message)
+                            
+                            # Clear blocks for the next batch
+                            blocks = []
+            
+            # Send any remaining blocks as a final update
+            if blocks:
+                slack_message = {"blocks": blocks, "text": "Coding agent final update"}
+                await self._send_slack_update(slack_message)
+                
+        except Exception as e:
+            self.audit_logger.error(f"Error in coding agent processing: {e}")
+            error_message = {
+                "blocks": [{
+                    "type": "rich_text",
+                    "elements": [{
+                        "type": "rich_text_section", 
+                        "elements": [
+                            {"type": "emoji", "name": "warning"},
+                            {"type": "text", "text": f" Error in coding agent: {str(e)}"}
+                        ]
+                    }]
+                }],
+                "text": "Coding agent error"
+            }
+            await self._send_slack_update(error_message)
+
+    async def _send_slack_update(self, slack_message: Dict) -> None:
+        """
+        Send a Slack message update.
+        
+        Args:
+            slack_message: The formatted Slack message to send
+        """
+        try:
+            from morpheus import app
+            
+            # Get the channel ID from command-line arguments in morpheus.py
+            import sys
+            import re
+            
+            # Try to find the channel ID from command-line arguments
+            channel_id = None
+            for i, arg in enumerate(sys.argv):
+                if arg == "--channel" and i + 1 < len(sys.argv):
+                    channel_id = sys.argv[i + 1]
+                    break
+            
+            if channel_id:
+                # Post message to the channel
+                await app.client.chat_postMessage(
+                    channel=channel_id,
+                    text=slack_message.get("text", "Coding agent update"),
+                    blocks=slack_message.get("blocks", [])
+                )
+                self.audit_logger.info(f"Posted coding agent update to channel {channel_id}")
+            else:
+                self.audit_logger.warning("No channel ID found for sending coding agent updates")
+        except Exception as e:
+            self.audit_logger.error(f"Error sending Slack update: {e}")
 
     async def process_message(self, text: str):
         """
@@ -363,6 +476,8 @@ class MorpheusBot:
                             )
                     elif part.tool_name == "write_notes_to_notebook":
                         emoji_name = "memo"  # Memo for notebook operations
+                    elif part.tool_name == "call_coding_agent":
+                        emoji_name = "robot_face"  # Robot for coding agent
 
                     elements.append({"type": "emoji", "name": emoji_name})
                     elements.append(
