@@ -85,11 +85,14 @@ class CodingAgent:
             history: Optional message history for context
             
         Returns:
-            An AsyncRunResult that can be used to stream updates
+            A context manager for streaming responses
         """
         self.logger.info(f"Processing coding query: {text[:100]}...")
+        # First initialize MCP servers
         async with self.agent.run_mcp_servers():
-            return await self.agent.run_stream(text, message_history=history or [])
+            # Return the run_stream context manager directly without awaiting it
+            # This ensures it can be used with 'async with' by the caller
+            return self.agent.run_stream(text, message_history=history or [])
     
     def extract_update_message(self, message: Any) -> str:
         """
