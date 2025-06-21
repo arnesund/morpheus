@@ -79,6 +79,20 @@ class MorpheusBot:
                 "stdio",
             ],
         )
+        
+        # Claude MCP server using claude mcp serve command
+        claude_env = {
+            "CLAUDE_CODE_USE_BEDROCK": "1",
+            "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            "AWS_REGION": os.getenv("AWS_REGION")
+        }
+        
+        claude_mcp_server = MCPServerStdio(
+            "claude",
+            args=["mcp", "serve"],
+            env=claude_env
+        )
 
         # Use Claude if Anthropic API key is set
         claude37sonnet = AnthropicModel("claude-3-7-sonnet-latest")
@@ -87,7 +101,7 @@ class MorpheusBot:
         o3mini = OpenAIModel("o3-mini")
         gpt4o  = OpenAIModel("gpt-4o")
         gpt41  = OpenAIModel("gpt-4.1")
-        gemini25flash = GeminiModel("gemini-2.5-flash-preview-05-20", provider="google-gla")
+        gemini25flash = GeminiModel("gemini-2.5-flash", provider="google-gla")
         gemini20flash = GeminiModel("gemini-2.0-flash", provider="google-gla")
 
         preferred_model = FallbackModel(
@@ -99,7 +113,7 @@ class MorpheusBot:
         self.agent = Agent(
             model=preferred_model,
             system_prompt=system_prompt,
-            mcp_servers=[run_python_server],
+            mcp_servers=[run_python_server, claude_mcp_server],
         )
 
         # Add dynamic system prompt snippets as well.
