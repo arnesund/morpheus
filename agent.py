@@ -339,8 +339,9 @@ class MorpheusBot:
             blocks = []
             
             # Start the streaming process with the coding agent
-            async with self.coding_agent.process_query(query) as result:
-                async for message in result.stream():
+            # First start the MCP servers and get the stream
+            stream_result = await self.coding_agent.process_query(query)
+            async for message in stream_result.stream():
                     # Extract update message
                     update = self.coding_agent.extract_update_message(message)
                     if update.strip():
