@@ -54,21 +54,24 @@ class TestMorpheusBot:
     async def test_bot_initialization(self, temp_db_path, temp_notebook_dir):
         """Test MorpheusBot initialization."""
         from agent import MorpheusBot
-        
+
         # Mock environment variables and external dependencies
-        with patch('os.getenv') as mock_getenv, \
+        with patch.dict('os.environ', {
+                'OPENAI_API_KEY': 'test-openai-key',
+                'ANTHROPIC_API_KEY': 'test-anthropic-key',
+                'DENO_PATH': '/usr/bin/deno',
+                'GEMINI_API_KEY': 'test-gemini-key'
+            }), \
              patch('pydantic_ai.models.anthropic.AnthropicModel', return_value=MagicMock()) as mock_anthropic, \
              patch('pydantic_ai.models.openai.OpenAIModel', return_value=MagicMock()) as mock_openai, \
+             patch('pydantic_ai.models.gemini.GeminiModel', return_value=MagicMock()) as mock_gemini, \
              patch('pydantic_ai.models.fallback.FallbackModel', return_value=MagicMock()) as mock_fallback, \
              patch('pydantic_ai.Agent', return_value=MagicMock()) as mock_agent, \
              patch('pydantic_ai.mcp.MCPServerStdio', return_value=MagicMock()) as mock_mcp:
-            
-            # Set up environment variables
-            mock_getenv.return_value = "mock_value"
-            
+
             # Set up the notebook path
             notebook_path = os.path.join(str(temp_notebook_dir), "test_notebook.md")
-            
+
             # Create the bot
             bot = MorpheusBot(
                 db_filename=temp_db_path,
@@ -93,25 +96,28 @@ class TestMorpheusBot:
     async def test_process_message(self, temp_db_path, mock_run_result):
         """Test processing a message through the agent."""
         from agent import MorpheusBot
-        
+
         # Create a bot with mocked agent
-        with patch('os.getenv') as mock_getenv, \
+        with patch.dict('os.environ', {
+                'OPENAI_API_KEY': 'test-openai-key',
+                'ANTHROPIC_API_KEY': 'test-anthropic-key',
+                'DENO_PATH': '/usr/bin/deno',
+                'GEMINI_API_KEY': 'test-gemini-key'
+            }), \
              patch('pydantic_ai.Agent') as MockAgent, \
              patch('pydantic_ai.mcp.MCPServerStdio', return_value=MagicMock()), \
              patch('pydantic_ai.models.anthropic.AnthropicModel', return_value=MagicMock()), \
              patch('pydantic_ai.models.openai.OpenAIModel', return_value=MagicMock()), \
+             patch('pydantic_ai.models.gemini.GeminiModel', return_value=MagicMock()), \
              patch('pydantic_ai.models.fallback.FallbackModel', return_value=MagicMock()):
-            
-            # Set up environment variables
-            mock_getenv.return_value = "mock_value"
-            
+
             # Set up the mock agent
             mock_agent = MagicMock()
             mock_agent.run = AsyncMock(return_value=mock_run_result)
             mock_agent.run_mcp_servers.return_value.__aenter__ = AsyncMock()
             mock_agent.run_mcp_servers.return_value.__aexit__ = AsyncMock()
             MockAgent.return_value = mock_agent
-            
+
             # Create the bot
             bot = MorpheusBot(db_filename=temp_db_path)
             
@@ -142,18 +148,21 @@ class TestMorpheusBot:
     def test_query_db(self, temp_db_path):
         """Test database query functionality."""
         from agent import MorpheusBot
-        
+
         # Create a bot
-        with patch('os.getenv') as mock_getenv, \
+        with patch.dict('os.environ', {
+                'OPENAI_API_KEY': 'test-openai-key',
+                'ANTHROPIC_API_KEY': 'test-anthropic-key',
+                'DENO_PATH': '/usr/bin/deno',
+                'GEMINI_API_KEY': 'test-gemini-key'
+            }), \
              patch('pydantic_ai.Agent', return_value=MagicMock()), \
              patch('pydantic_ai.mcp.MCPServerStdio', return_value=MagicMock()), \
              patch('pydantic_ai.models.anthropic.AnthropicModel', return_value=MagicMock()), \
              patch('pydantic_ai.models.openai.OpenAIModel', return_value=MagicMock()), \
+             patch('pydantic_ai.models.gemini.GeminiModel', return_value=MagicMock()), \
              patch('pydantic_ai.models.fallback.FallbackModel', return_value=MagicMock()):
-            
-            # Set up environment variables
-            mock_getenv.return_value = "mock_value"
-            
+
             # Create and initialize the bot
             bot = MorpheusBot(db_filename=temp_db_path)
             
@@ -175,18 +184,21 @@ class TestMorpheusBot:
         """Test history management functions."""
         from agent import MorpheusBot
         import time
-        
+
         # Create a bot
-        with patch('os.getenv') as mock_getenv, \
+        with patch.dict('os.environ', {
+                'OPENAI_API_KEY': 'test-openai-key',
+                'ANTHROPIC_API_KEY': 'test-anthropic-key',
+                'DENO_PATH': '/usr/bin/deno',
+                'GEMINI_API_KEY': 'test-gemini-key'
+            }), \
              patch('pydantic_ai.Agent', return_value=MagicMock()), \
              patch('pydantic_ai.mcp.MCPServerStdio', return_value=MagicMock()), \
              patch('pydantic_ai.models.anthropic.AnthropicModel', return_value=MagicMock()), \
              patch('pydantic_ai.models.openai.OpenAIModel', return_value=MagicMock()), \
+             patch('pydantic_ai.models.gemini.GeminiModel', return_value=MagicMock()), \
              patch('pydantic_ai.models.fallback.FallbackModel', return_value=MagicMock()):
-            
-            # Set up environment variables
-            mock_getenv.return_value = "mock_value"
-            
+
             # Create the bot
             bot = MorpheusBot(db_filename=":memory:")
             
